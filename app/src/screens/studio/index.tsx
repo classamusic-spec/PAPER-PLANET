@@ -193,6 +193,7 @@ export default function StudioScreen() {
         material={material}
         onFoldAnother={restart}
         onDone={() => nav.reset('planet')}
+        onFoldAlong={() => nav.push('foldalong', { speciesId: species?.id })}
       />
     )
   }

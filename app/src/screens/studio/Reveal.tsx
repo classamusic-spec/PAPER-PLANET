@@ -35,6 +35,7 @@ export default function Reveal({
   material,
   onFoldAnother,
   onDone,
+  onFoldAlong,
 }: {
   species: Species
   result: StudioResult
@@ -43,6 +44,8 @@ export default function Reveal({
   material: PaperMaterial
   onFoldAnother: () => void
   onDone: () => void
+  /** Take this same fold to the diagrams, for real paper. */
+  onFoldAlong: () => void
 }) {
   const [outcome, setOutcome] = useState<Outcome | null>(null)
   const [name, setName] = useState('')
@@ -217,6 +220,15 @@ export default function Reveal({
             )}
 
             <p className="pp-reveal__fact">{species.codex.fact}</p>
+
+            {/* The best moment in the app to offer real paper: they have just
+                made this thing and can see it. Offered, never pushed — it sits
+                as a line, not a third button competing with the other two. */}
+            <button type="button" className="pp-reveal__real" onClick={onFoldAlong}>
+              <Icon name="sheets" size={14} />
+              <span>Now fold {species.name.toLowerCase()} on real paper</span>
+              <Icon name="chevron" size={13} />
+            </button>
 
             <div className="pp-reveal__actions">
               <Button variant="quiet" onClick={onFoldAnother}>

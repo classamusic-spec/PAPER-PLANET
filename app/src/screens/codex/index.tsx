@@ -76,6 +76,14 @@ export default function CodexScreen() {
     [nav],
   )
 
+  const onFoldAlong = useCallback(
+    (speciesId: string) => {
+      audio.play('sheet.slide')
+      nav.push('foldalong', { speciesId })
+    },
+    [nav],
+  )
+
   return (
     <div className="pp-codex">
       <header className="pp-codex__head">
@@ -132,7 +140,7 @@ export default function CodexScreen() {
                   variant="quiet"
                 />
               </div>
-              <SpeciesDetail species={current} onFold={onFold} />
+              <SpeciesDetail species={current} onFold={onFold} onFoldAlong={onFoldAlong} />
             </Paper>
           </aside>
         )}
@@ -158,6 +166,7 @@ export default function CodexScreen() {
                 species={current}
                 compactHeading
                 onFold={onFold}
+                onFoldAlong={onFoldAlong}
                 onLeave={() => setSelected(null)}
               />
             </>

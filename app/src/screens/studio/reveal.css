@@ -284,3 +284,30 @@
   .pp-reveal__paper, .pp-reveal__kami { transition-duration: var(--t-quick); }
   .pp-reveal__stage.is-alive .pp-reveal__kami { animation: none; }
 }
+
+/* The way out to real paper. A line, not a third button — it must be findable
+   without competing with the two decisions already on the card. */
+.pp-reveal__real {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: var(--touch-min);
+  margin: var(--s-4) 0 var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  border: 1px dashed color-mix(in srgb, var(--kincha) 45%, transparent);
+  border-radius: var(--r-3);
+  background: color-mix(in srgb, var(--kincha) 7%, transparent);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--kincha);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-settle);
+}
+.pp-reveal__real:hover,
+.pp-reveal__real:focus-visible {
+  background: color-mix(in srgb, var(--kincha) 14%, transparent);
+}

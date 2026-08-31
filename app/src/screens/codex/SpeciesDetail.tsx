@@ -46,9 +46,17 @@ export interface SpeciesDetailProps {
   /** Called after navigation, so a phone Sheet can close itself. */
   onLeave?: () => void
   onFold: (speciesId: string) => void
+  /** Open the diagrams for this fold, for anyone who wants real paper. */
+  onFoldAlong?: (speciesId: string) => void
 }
 
-export function SpeciesDetail({ species, compactHeading = false, onLeave, onFold }: SpeciesDetailProps) {
+export function SpeciesDetail({
+  species,
+  compactHeading = false,
+  onLeave,
+  onFold,
+  onFoldAlong,
+}: SpeciesDetailProps) {
   const folds = useFoldCount(species.id)
   const mastery = useMasteryProgress(species.id)
   const unlock = useUnlock(species.id)
@@ -246,9 +254,25 @@ export function SpeciesDetail({ species, compactHeading = false, onLeave, onFold
       {/* ── what you do next ───────────────────────────────────────────── */}
       <div className="cx-detail__act">
         {foldable ? (
-          <Button variant="beni" size="lg" block icon="fold" onClick={fold} cue="ui.confirm">
-            {seen ? 'Fold it again' : 'Fold this'}
-          </Button>
+          <>
+            <Button variant="beni" size="lg" block icon="fold" onClick={fold} cue="ui.confirm">
+              {seen ? 'Fold it again' : 'Fold this'}
+            </Button>
+            {/* The diagrams are the point of the whole teaching layer, and for a
+                long time the only way to them was an unlabelled icon inside the
+                Studio — you had to start folding to find out they existed. */}
+            {onFoldAlong && (
+              <Button
+                variant="quiet"
+                size="md"
+                block
+                icon="sheets"
+                onClick={() => onFoldAlong(species.id)}
+              >
+                Fold along on real paper
+              </Button>
+            )}
+          </>
         ) : (
           <Paper tone={2} edge="torn" elevation={0} radius="lg" seed={`lock-${species.id}`} className="cx-lock">
             <p className="cx-lock__head">

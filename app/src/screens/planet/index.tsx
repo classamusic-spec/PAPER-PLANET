@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { BiomeId, KamiInstance, Species } from '../../contracts'
+import type { Surface } from '../../content/types'
 import { BIOME_SCENERY, allBiomes, getBiome, getMeta, getSpecies } from '../../content'
 import { actions, useDaily, useGame, useKamiList, useSettings, useWallet } from '../../systems'
 import { audio, haptics } from '../../audio'
@@ -12,6 +13,26 @@ import { ShareButton } from '../../features/share'
 import KamiMark from '../codex/KamiMark'
 import { PROP_ART, PROP_BAND } from './propArt'
 import './planet.css'
+
+/**
+ * Where each kind of creature stands, as a fraction of the world's height.
+ *
+ * Measured against what the world actually draws, not guessed: the ground
+ * begins at 0.48, the pond occupies 0.61-0.70, and the biome tabs cover
+ * everything below 0.825. So a walker belongs between the pond and the tabs —
+ * standing in the water read as a bug rather than a swim, and standing below
+ * them put half the collection behind a button.
+ */
+const BANDS: Record<string, [number, number]> = {
+  air: [0.28, 0.44],
+  perch: [0.48, 0.56],
+  rock: [0.57, 0.63],
+  water: [0.62, 0.68],
+  ground: [0.72, 0.78],
+}
+
+/** Nothing may stand below this: the biome tabs start here. */
+const FLOOR = 0.79
 
 /** How fast each depth band travels against a pan. Nearer moves more. */
 const PARALLAX: Record<string, number> = { far: 0.22, mid: 0.55, near: 1 }
@@ -83,24 +104,33 @@ export default function PlanetScreen() {
       const s = getSpecies(k.speciesId)
       return s ? s.biome === biome : false
     })
-    return here.map((k, i) => {
+
+    /* Lay them out band by band rather than all at once.
+       The old rule walked one index across the whole biome and wrapped it, so
+       a fox and a rabbit could land on the same blade of grass while half the
+       field stood empty. Spacing each band by how crowded that band is keeps
+       them apart at any collection size, and keeps a walker out of the pond. */
+    const bandOf = (k: KamiInstance): Surface => getMeta(k.speciesId)?.surface ?? 'ground'
+    const order: Record<string, KamiInstance[]> = {}
+    for (const k of here) (order[bandOf(k)] ??= []).push(k)
+
+    return here.map((k) => {
       const species = getSpecies(k.speciesId)!
       const meta = getMeta(k.speciesId)
-      const surface = meta?.surface ?? 'ground'
-      const jitterX = hash01(k.uid, 1)
+      const surface = bandOf(k)
       const jitterY = hash01(k.uid, 2)
+      const jitterX = hash01(k.uid, 1)
+
+      const siblings = order[surface] ?? [k]
+      const slot = siblings.indexOf(k)
+      const n = siblings.length
+      // Evenly spaced across the field, with room to wander inside the slot.
+      const spread = 0.84 / n
+      const x = 0.08 + spread * (slot + 0.5) + (jitterX - 0.5) * spread * 0.4
 
       // Water dwellers sit low in the pond, fliers ride high, the rest walk.
-      const band =
-        surface === 'water'
-          ? [0.66, 0.74]
-          : surface === 'air'
-            ? [0.3, 0.46]
-            : surface === 'perch'
-              ? [0.5, 0.6]
-              : [0.6, 0.78]
-      const y = band[0] + jitterY * (band[1] - band[0])
-      const x = 0.08 + ((i * 0.37 + jitterX * 0.5) % 1) * 0.84
+      const band = BANDS[surface] ?? BANDS.ground
+      const y = Math.min(FLOOR, band[0] + jitterY * (band[1] - band[0]))
 
       // A Kami whose species flocks with a neighbour here leans toward them.
       const flock = meta?.flock ?? []
@@ -219,8 +249,9 @@ export default function PlanetScreen() {
                 top: `${p.y * 100}%`,
                 width: `${p.scale * 17}%`,
                 ['--lean' as string]: `${p.lean}deg`,
-                ['--phase' as string]: `${hash01(p.kami.uid, 5) * 4}s`,
+                ['--phase' as string]: `${hash01(p.kami.uid, 5) * 9}s`,
               }}
+              data-idle={p.species.idle}
               onClick={() => tend(p.kami, p.species)}
               aria-label={`${p.kami.nickname ?? p.species.name}. Bond ${Math.round(p.kami.bond)} of 100. Tap to greet.`}
             >

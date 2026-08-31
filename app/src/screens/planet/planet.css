@@ -121,7 +121,11 @@
   background: none;
   border: none;
   cursor: pointer;
-  animation: pp-kami-breathe 4.2s var(--ease-paper) infinite;
+  /* The motion is chosen by the species' own `idle`, below. The transform
+     property is spoken for by placement, so everything here animates the
+     independent `translate` / `rotate` / `scale` — they compose ahead of
+     transform instead of fighting it. */
+  animation: pp-kami-stand 4.2s var(--ease-paper) infinite;
   animation-delay: calc(var(--phase, 0s) * -1);
   filter: drop-shadow(0 6px 6px rgba(62, 44, 30, 0.16));
 }
@@ -129,10 +133,96 @@
 .pp-planet__k.is-happy { animation: pp-kami-happy 0.9s var(--ease-alive); }
 .pp-planet.is-night .pp-planet__k { filter: drop-shadow(0 6px 8px rgba(10, 6, 22, 0.45)); }
 
-@keyframes pp-kami-breathe {
-  0%, 100% { scale: 1; }
-  50% { scale: 1.018; }
+/* ── how each thing moves ───────────────────────────────────────────────────
+   Every species already carried an `idle` — bob, hop, sway, fly, flutter,
+   walk, swim, stand, burrow — and for a long time nothing read it, so a whale
+   and a butterfly breathed at the same rate and by the same 1.8%. These are
+   those nine, told apart by weight and by tempo rather than by amplitude: a
+   hop is fast and lands hard, a swim is slow and never leaves the water, a
+   flutter never holds still and never travels far.
+
+   Durations are deliberately co-prime-ish so a meadow full of Kami does not
+   fall into step. --phase (seeded per Kami) offsets each one again. */
+
+/* Standing: weight shifting from foot to foot. The old breathe, with a lean. */
+@keyframes pp-kami-stand {
+  0%, 100% { scale: 1; rotate: 0deg; }
+  50% { scale: 1.018; rotate: 0.8deg; }
 }
+
+/* Walking: a shuffle that goes somewhere and comes back, bobbing on each step. */
+@keyframes pp-kami-walk {
+  0%, 100% { translate: -7% 0; rotate: -1.5deg; }
+  25% { translate: -3% -1.5%; rotate: 0.5deg; }
+  50% { translate: 7% 0; rotate: 1.5deg; }
+  75% { translate: 3% -1.5%; rotate: -0.5deg; }
+}
+
+/* Hopping: gather, spring, hang, land heavy. Most of the cycle is the pause. */
+@keyframes pp-kami-hop {
+  0%, 62%, 100% { translate: 0 0; scale: 1 1; }
+  66% { translate: 0 1%; scale: 1.1 0.9; }
+  74% { translate: 4% -13%; scale: 0.94 1.08; }
+  82% { translate: 8% -16%; scale: 0.96 1.05; }
+  92% { translate: 12% 0; scale: 1.12 0.88; }
+  96% { translate: 12% 0; scale: 0.98 1.02; }
+}
+
+/* Swaying: rooted, moving with the air rather than under its own power. */
+@keyframes pp-kami-sway {
+  0%, 100% { rotate: -3.5deg; translate: -1% 0; }
+  50% { rotate: 3.5deg; translate: 1% 0; }
+}
+
+/* Flying: a long shallow arc across the sky, banking into the turn. */
+@keyframes pp-kami-fly {
+  0%, 100% { translate: -26% 2%; rotate: -4deg; scale: 0.96; }
+  25% { translate: -8% -6%; rotate: 2deg; scale: 1; }
+  50% { translate: 26% -2%; rotate: 4deg; scale: 1.04; }
+  75% { translate: 8% -7%; rotate: -2deg; scale: 1; }
+}
+
+/* Fluttering: never still, never far. Small, quick, and slightly wrong-footed. */
+@keyframes pp-kami-flutter {
+  0%, 100% { translate: -5% 0; rotate: -7deg; }
+  20% { translate: -2% -6%; rotate: 5deg; }
+  40% { translate: 4% -2%; rotate: -4deg; }
+  60% { translate: 6% -8%; rotate: 8deg; }
+  80% { translate: 1% -3%; rotate: -6deg; }
+}
+
+/* Swimming: a glide with the body pushing side to side. Horizontal, patient. */
+@keyframes pp-kami-swim {
+  0%, 100% { translate: -9% 0; rotate: -2deg; scale: 1 1; }
+  30% { translate: -2% 1%; rotate: 1deg; scale: 1.02 0.99; }
+  50% { translate: 9% 0; rotate: 2deg; scale: 1 1; }
+  80% { translate: 2% 1%; rotate: -1deg; scale: 1.02 0.99; }
+}
+
+/* Bobbing: floating. Vertical only — a thing the water is moving, not a swimmer. */
+@keyframes pp-kami-bob {
+  0%, 100% { translate: 0 2.5%; rotate: -1.5deg; }
+  50% { translate: 0 -2.5%; rotate: 1.5deg; }
+}
+
+/* Burrowing: mostly under, surfacing to look around, then gone again. */
+@keyframes pp-kami-burrow {
+  0%, 46%, 100% { translate: 0 14%; scale: 1 0.86; }
+  56% { translate: 0 -1%; scale: 1 1.04; }
+  76% { translate: 0 -2%; scale: 1 1; }
+  86% { translate: 0 14%; scale: 1 0.86; }
+}
+
+.pp-planet__k[data-idle='stand'] { animation-name: pp-kami-stand; animation-duration: 4.2s; }
+.pp-planet__k[data-idle='walk'] { animation-name: pp-kami-walk; animation-duration: 6.7s; }
+.pp-planet__k[data-idle='hop'] { animation-name: pp-kami-hop; animation-duration: 5.3s; animation-timing-function: var(--ease-alive); }
+.pp-planet__k[data-idle='sway'] { animation-name: pp-kami-sway; animation-duration: 5.9s; }
+.pp-planet__k[data-idle='fly'] { animation-name: pp-kami-fly; animation-duration: 11.3s; }
+.pp-planet__k[data-idle='flutter'] { animation-name: pp-kami-flutter; animation-duration: 3.1s; }
+.pp-planet__k[data-idle='swim'] { animation-name: pp-kami-swim; animation-duration: 8.9s; }
+.pp-planet__k[data-idle='bob'] { animation-name: pp-kami-bob; animation-duration: 4.7s; }
+.pp-planet__k[data-idle='burrow'] { animation-name: pp-kami-burrow; animation-duration: 9.7s; }
+
 @keyframes pp-kami-happy {
   0% { scale: 1; }
   30% { scale: 1.16; rotate: -5deg; }
@@ -271,6 +361,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pp-planet__k { animation: none; }
+  .pp-planet__k,
+  .pp-planet__k[data-idle] { animation: none; }
   .pp-planet__band, .pp-planet__kami { transition: none; }
 }
