@@ -4,6 +4,7 @@ import type { AudioEngine } from './engine'
 import type { Sampler } from './sampler'
 import { TEXTURES } from './manifest'
 import type { TextureId } from './manifest'
+import { FRICTION_TRIM, TEXTURE_GAIN } from './mix'
 
 /* ─────────────────────────── the velocity map ───────────────────────────
 
@@ -26,7 +27,7 @@ const V_REF = 2.0
 const V_EXP = 0.55
 const V_MAX = 1.15
 
-function normVelocity(pxPerMs: number): number {
+export function normVelocity(pxPerMs: number): number {
   if (!(pxPerMs > 0)) return 0
   return Math.min(V_MAX, Math.pow(pxPerMs / V_REF, V_EXP))
 }
@@ -55,7 +56,7 @@ const RATE_MAX = 1.35
 const PAN_SPREAD = 0.42
 
 /** One Hann window, reused by every grain. */
-const HANN = ((n: number): Float32Array => {
+export const HANN = ((n: number): Float32Array => {
   const c = new Float32Array(n)
   for (let i = 0; i < n; i++) c[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1))
   return c
@@ -64,21 +65,74 @@ const HANN = ((n: number): Float32Array => {
 const SOURCES: readonly TextureId[] = ['texture.rub.slow', 'texture.rub.fast', 'texture.burnish']
 
 /**
- * One pre-scaled grain envelope per source, built once. The per-source factor
- * undoes the level differences mastering left between the textures, so swapping
- * sources mid-rub never steps in loudness.
+ * One pre-scaled grain envelope per source, built once.
+ *
+ * The per-source factor comes from ./mix, which matched the three recordings
+ * on ungated loudness — a grain lands anywhere in a texture with equal chance,
+ * so that is the statistic that decides whether swapping sources mid-rub steps
+ * in level. It used to come from the manifest's whole-file RMS, which is the
+ * un-weighted version of the same idea and left `burnish` about 2 dB out.
  */
 const GRAIN_ENVELOPE: Record<TextureId, Float32Array> = (() => {
-  const ref = -22
   const out = {} as Record<TextureId, Float32Array>
   for (const id of Object.keys(TEXTURES) as TextureId[]) {
-    const trim = Math.pow(10, (ref - TEXTURES[id].rmsDb) / 20) * 0.5
+    const trim = TEXTURE_GAIN[id]
     const curve = new Float32Array(HANN.length)
     for (let i = 0; i < HANN.length; i++) curve[i] = HANN[i] * trim
     out[id] = curve
   }
   return out
 })()
+
+/* ─────────────────────── the parameter map ───────────────────────
+   One number in, the whole voice out. Kept as a pure function because it is
+   also the thing `tools/mix-report.mjs` renders offline to check where the
+   friction voice actually sits against the paper — the app and the meter must
+   never be able to disagree about this.
+────────────────────────────────────────────────────────────────── */
+
+export interface FrictionParams {
+  /** Loudness of the whole voice. */
+  gain: number
+  /** Centre of the shared bandpass the grains run through. */
+  toneHz: number
+  /** Centre of the fine-fibre noise layer. */
+  noiseHz: number
+  /** How much of that layer. Zero until the rub is brisk enough to make it. */
+  noiseAmt: number
+  grainRate: number
+  grainDur: number
+  grainSpeed: number
+  fastProb: number
+  burnishProb: number
+}
+
+/**
+ * `n` is normalised velocity (see normVelocity), `p` is pressure 0..1.
+ *
+ * The loudness law is deliberately gentler than it looks it should be. Real
+ * friction spans an enormous range with speed, and mapping that honestly put
+ * about 22 dB between a slow deliberate rub and a fast one — which meant the
+ * slow, careful rubbing this app is *for* sat 22 dB under the brisk scrubbing
+ * it is not for. 0.20 + 0.80n plus the density the grain rate adds on its own
+ * comes to about 15 dB end to end, which still reads as "faster is louder"
+ * without making the quiet half of the gesture inaudible.
+ */
+export function frictionParams(n: number, p: number): FrictionParams {
+  const v = Math.min(1, n)
+  return {
+    gain: FRICTION_TRIM * (0.20 + 0.80 * v) * (0.55 + 0.45 * p),
+    // More pressure means a wider contact patch, which means more low end.
+    toneHz: Math.min(12000, 620 * Math.pow(6.8, v) * (1.15 - 0.3 * p)),
+    noiseHz: Math.min(14000, 3200 * Math.pow(2.6, v)),
+    noiseAmt: Math.max(0, n - 0.32) * 0.55,
+    grainRate: lerp(GRAIN_RATE_MIN, GRAIN_RATE_MAX, v),
+    grainDur: lerp(GRAIN_DUR_MAX, GRAIN_DUR_MIN, v),
+    grainSpeed: lerp(RATE_MIN, RATE_MAX, v),
+    fastProb: smoothstep(0.25, 0.95, n),
+    burnishProb: smoothstep(0.55, 1.0, p) * 0.6,
+  }
+}
 
 /**
  * A continuous paper-friction voice built from granular playback.
@@ -345,39 +399,26 @@ export class GranularFriction {
     const k = rising ? 0.55 : 0.20
     this.smoothV += (this.targetV - this.smoothV) * k
 
-    const n = this.smoothV
-    const p = this.pressure
-
-    /* ── map velocity onto every parameter at once ── */
-    const gain = (0.12 + 0.88 * Math.min(1, n)) * (0.55 + 0.45 * p)
-    // More pressure means a wider contact patch, which means more low end.
-    const toneHz = 620 * Math.pow(6.8, Math.min(1, n)) * (1.15 - 0.3 * p)
-    const noiseHz = 3200 * Math.pow(2.6, Math.min(1, n))
-    const noiseAmt = Math.max(0, n - 0.32) * 0.55
+    /* ── one number maps onto every parameter at once ── */
+    const m = frictionParams(this.smoothV, this.pressure)
 
     const t = ctx.currentTime
-    this.set(this.level?.gain, gain, t, 0.035)
-    this.set(this.tone?.frequency, Math.min(12000, toneHz), t, 0.04)
-    this.set(this.noiseFilter?.frequency, Math.min(14000, noiseHz), t, 0.05)
-    this.set(this.noiseGain?.gain, noiseAmt, t, 0.05)
+    this.set(this.level?.gain, m.gain, t, 0.035)
+    this.set(this.tone?.frequency, m.toneHz, t, 0.04)
+    this.set(this.noiseFilter?.frequency, m.noiseHz, t, 0.05)
+    this.set(this.noiseGain?.gain, m.noiseAmt, t, 0.05)
 
     if (!this.active) return
 
     /* ── schedule grains up to LOOKAHEAD ahead ── */
-    const rate = lerp(GRAIN_RATE_MIN, GRAIN_RATE_MAX, Math.min(1, n))
-    const dur = lerp(GRAIN_DUR_MAX, GRAIN_DUR_MIN, Math.min(1, n))
-    const speed = lerp(RATE_MIN, RATE_MAX, Math.min(1, n))
-    const fastProb = smoothstep(0.25, 0.95, n)
-    const burnishProb = smoothstep(0.55, 1.0, p) * 0.6
-
     const horizon = t + LOOKAHEAD
     if (this.nextGrain < t) this.nextGrain = t + 0.005
     let budget = 24
     while (this.nextGrain < horizon && budget-- > 0) {
-      this.grain(ctx, this.nextGrain, dur, speed, fastProb, burnishProb)
+      this.grain(ctx, this.nextGrain, m.grainDur, m.grainSpeed, m.fastProb, m.burnishProb)
       // Jittered onsets. Perfectly periodic grains ring at the grain rate and
       // turn the texture into a buzz; ±22% removes the pitch entirely.
-      this.nextGrain += (1 / rate) * (0.78 + Math.random() * 0.44)
+      this.nextGrain += (1 / m.grainRate) * (0.78 + Math.random() * 0.44)
     }
   }
 

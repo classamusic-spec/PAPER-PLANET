@@ -1,6 +1,7 @@
 // PAPER PLANET — sparse generative kalimba over a low drone. Tempo-free, never loops.
 
 import type { AudioEngine } from './engine'
+import { MUSIC_TRIM } from './mix'
 
 /**
  * The Yo scale — the Japanese pentatonic without half-steps. Every pair of
@@ -11,7 +12,7 @@ const ROOT = 146.83 // D3
 const DEGREES = [0, 2, 5, 7, 9] // D E G A B
 const OCTAVES = [1, 2, 3]
 
-function noteFreq(degreeIndex: number, octave: number): number {
+export function noteFreq(degreeIndex: number, octave: number): number {
   const semis = DEGREES[degreeIndex % DEGREES.length] + 12 * octave
   return ROOT * Math.pow(2, semis / 12)
 }
@@ -99,7 +100,7 @@ export class Music {
     try {
       this.out.gain.cancelScheduledValues(now)
       this.out.gain.setValueAtTime(Math.max(0.0001, this.out.gain.value), now)
-      this.out.gain.linearRampToValueAtTime(1, now + 3.5)
+      this.out.gain.linearRampToValueAtTime(MUSIC_TRIM, now + 3.5)
     } catch { /* detached */ }
 
     this.buildDrone(ctx)
@@ -138,37 +139,7 @@ export class Music {
 
   private buildDrone(ctx: AudioContext): void {
     if (this.droneNodes.length || !this.out) return
-
-    const shelf = ctx.createBiquadFilter()
-    shelf.type = 'lowpass'
-    shelf.frequency.value = 420
-    shelf.Q.value = 0.4
-    shelf.connect(this.out)
-
-    const g = ctx.createGain()
-    g.gain.value = 0.09
-    g.connect(shelf)
-
-    // Root and fifth, each detuned a few cents against a twin. The pairs beat
-    // at well under 1Hz, which is what makes a drone feel alive rather than
-    // synthetic — no LFO required.
-    for (const [freq, detune, level] of [
-      [ROOT / 2, -4, 1],
-      [ROOT / 2, +5, 0.9],
-      [(ROOT / 2) * 1.5, -3, 0.45],
-      [(ROOT / 2) * 1.5, +4, 0.4],
-    ] as const) {
-      const osc = ctx.createOscillator()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      osc.detune.value = detune
-      const og = ctx.createGain()
-      og.gain.value = level
-      osc.connect(og).connect(g)
-      try { osc.start() } catch { /* ignore */ }
-      this.droneNodes.push(osc, og)
-    }
-    this.droneNodes.push(g, shelf)
+    this.droneNodes = buildDrone(ctx, this.out)
   }
 
   /* ── the scheduler ──────────────────────────────────────────────────── */
@@ -217,69 +188,134 @@ export class Music {
     if (Math.random() < REST_CHANCE) this.nextNote += Math.random() * REST_MAX
   }
 
-  /** One kalimba note: inharmonic partials plus a thumbnail transient. */
+  /** One kalimba note now, at a middling velocity. What the Music fader auditions. */
+  previewNote(): void {
+    const ctx = this.engine.context()
+    const bus = this.engine.bus('music')
+    if (!ctx || !bus) return
+    // Straight to the bus, not through `out` — the fader should be auditionable
+    // whether or not the music itself is running.
+    const g = ctx.createGain()
+    g.gain.value = MUSIC_TRIM
+    g.connect(bus)
+    pluckNote(ctx, g, ctx.currentTime + 0.02, noteFreq(2, 2), 0.85)
+    window.setTimeout(() => { try { g.disconnect() } catch { /* ignore */ } }, 6000)
+  }
+
   private pluck(ctx: AudioContext, when: number, freq: number, velocity: number): void {
-    const out = this.out
-    if (!out) return
+    if (this.out) pluckNote(ctx, this.out, when, freq, velocity)
+  }
+}
 
-    const body = ctx.createGain()
-    body.gain.value = 0.16 * velocity
-    // Higher notes are naturally quieter and shorter on a real tine.
-    const bright = Math.min(1, 320 / freq)
-    const life = 2.4 + bright * 2.6
+/**
+ * The drone: root and fifth, each detuned a few cents against a twin. The pairs
+ * beat at well under 1Hz, which is what makes a drone feel alive rather than
+ * synthetic — no LFO required.
+ *
+ * Standalone so `tools/mix-report` can render the real thing into an
+ * OfflineAudioContext and read its level, instead of a copy of it that could
+ * drift out of step.
+ */
+export function buildDrone(ctx: BaseAudioContext, dest: AudioNode): AudioNode[] {
+  const nodes: AudioNode[] = []
 
-    const tone = ctx.createBiquadFilter()
-    tone.type = 'lowpass'
-    tone.frequency.value = 2600 + 1800 * bright
-    tone.Q.value = 0.5
-    body.connect(tone).connect(out)
+  const shelf = ctx.createBiquadFilter()
+  shelf.type = 'lowpass'
+  shelf.frequency.value = 420
+  shelf.Q.value = 0.4
+  shelf.connect(dest)
 
-    for (const p of PARTIALS) {
-      const f = freq * p.ratio
-      if (f > 16000) continue
-      const osc = ctx.createOscillator()
-      osc.type = 'sine'
-      osc.frequency.value = f
-      // A hair of detune per note so no two strikes are identical.
-      osc.detune.value = (Math.random() * 2 - 1) * 6
+  const g = ctx.createGain()
+  g.gain.value = 0.09
+  g.connect(shelf)
 
-      const g = ctx.createGain()
-      const decay = life * p.decay
-      g.gain.setValueAtTime(0.0001, when)
-      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, p.gain), when + 0.004)
-      g.gain.exponentialRampToValueAtTime(0.0001, when + decay)
+  for (const [freq, detune, level] of [
+    [ROOT / 2, -4, 1],
+    [ROOT / 2, +5, 0.9],
+    [(ROOT / 2) * 1.5, -3, 0.45],
+    [(ROOT / 2) * 1.5, +4, 0.4],
+  ] as const) {
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.value = freq
+    osc.detune.value = detune
+    const og = ctx.createGain()
+    og.gain.value = level
+    osc.connect(og).connect(g)
+    try { osc.start() } catch { /* ignore */ }
+    nodes.push(osc, og)
+  }
+  nodes.push(g, shelf)
+  return nodes
+}
 
-      osc.connect(g).connect(body)
-      try {
-        osc.start(when)
-        osc.stop(when + decay + 0.05)
-      } catch {
-        continue
-      }
-      osc.onended = (): void => {
-        try { osc.disconnect(); g.disconnect() } catch { /* ignore */ }
-      }
+/** One kalimba note: inharmonic partials plus a thumbnail transient. */
+export function pluckNote(
+  ctx: BaseAudioContext,
+  out: AudioNode,
+  when: number,
+  freq: number,
+  velocity: number,
+): void {
+  const body = ctx.createGain()
+  body.gain.value = 0.16 * velocity
+  // Higher notes are naturally quieter and shorter on a real tine.
+  const bright = Math.min(1, 320 / freq)
+  const life = 2.4 + bright * 2.6
+
+  const tone = ctx.createBiquadFilter()
+  tone.type = 'lowpass'
+  tone.frequency.value = 2600 + 1800 * bright
+  tone.Q.value = 0.5
+  body.connect(tone).connect(out)
+
+  for (const p of PARTIALS) {
+    const f = freq * p.ratio
+    if (f > 16000) continue
+    const osc = ctx.createOscillator()
+    osc.type = 'sine'
+    osc.frequency.value = f
+    // A hair of detune per note so no two strikes are identical.
+    osc.detune.value = (Math.random() * 2 - 1) * 6
+
+    const g = ctx.createGain()
+    const decay = life * p.decay
+    g.gain.setValueAtTime(0.0001, when)
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, p.gain), when + 0.004)
+    g.gain.exponentialRampToValueAtTime(0.0001, when + decay)
+
+    osc.connect(g).connect(body)
+    try {
+      osc.start(when)
+      osc.stop(when + decay + 0.05)
+    } catch {
+      continue
     }
-
-    // The thumbnail leaving the tine.
-    const nlen = Math.max(1, Math.floor(ctx.sampleRate * 0.02))
-    const nbuf = ctx.createBuffer(1, nlen, ctx.sampleRate)
-    const nd = nbuf.getChannelData(0)
-    for (let i = 0; i < nlen; i++) nd[i] = (Math.random() * 2 - 1) * (1 - i / nlen)
-    const nsrc = ctx.createBufferSource()
-    nsrc.buffer = nbuf
-    const nf = ctx.createBiquadFilter()
-    nf.type = 'bandpass'
-    nf.frequency.value = Math.min(9000, freq * 4)
-    nf.Q.value = 0.8
-    const ng = ctx.createGain()
-    ng.gain.value = 0.06 * velocity
-    nsrc.connect(nf).connect(ng).connect(out)
-    try { nsrc.start(when) } catch { /* ignore */ }
-    nsrc.onended = (): void => {
-      try { nsrc.disconnect(); nf.disconnect(); ng.disconnect() } catch { /* ignore */ }
+    osc.onended = (): void => {
+      try { osc.disconnect(); g.disconnect() } catch { /* ignore */ }
     }
+  }
 
+  // The thumbnail leaving the tine.
+  const nlen = Math.max(1, Math.floor(ctx.sampleRate * 0.02))
+  const nbuf = ctx.createBuffer(1, nlen, ctx.sampleRate)
+  const nd = nbuf.getChannelData(0)
+  for (let i = 0; i < nlen; i++) nd[i] = (Math.random() * 2 - 1) * (1 - i / nlen)
+  const nsrc = ctx.createBufferSource()
+  nsrc.buffer = nbuf
+  const nf = ctx.createBiquadFilter()
+  nf.type = 'bandpass'
+  nf.frequency.value = Math.min(9000, freq * 4)
+  nf.Q.value = 0.8
+  const ng = ctx.createGain()
+  ng.gain.value = 0.06 * velocity
+  nsrc.connect(nf).connect(ng).connect(out)
+  try { nsrc.start(when) } catch { /* ignore */ }
+  nsrc.onended = (): void => {
+    try { nsrc.disconnect(); nf.disconnect(); ng.disconnect() } catch { /* ignore */ }
+  }
+
+  if (typeof window !== 'undefined') {
     window.setTimeout(() => {
       try { body.disconnect(); tone.disconnect() } catch { /* ignore */ }
     }, (when - ctx.currentTime + life + 0.5) * 1000)

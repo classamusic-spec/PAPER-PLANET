@@ -1,0 +1,93 @@
+/* PAPER PLANET — the share sheet. The card is the hero; everything else gets out of its way. */
+
+.pps-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  padding-top: var(--s-1);
+}
+
+/* ── the preview ──────────────────────────────────────────────────────────
+   The card is a real sheet lying on the desk, so it gets the desk's own drop
+   shadow and a hair of rotation. Nothing here is machine-square. */
+
+.pps-preview {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+}
+
+.pps-canvas {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  border-radius: var(--r-sm);
+  box-shadow: var(--sh-3);
+  transform: rotate(-0.5deg);
+  background: var(--paper-2);
+  transition: opacity var(--t-base) var(--ease-paper);
+}
+.pps-preview[data-shape='square'] .pps-canvas { max-height: min(46vh, 420px); }
+.pps-preview[data-shape='story'] .pps-canvas { max-height: min(52vh, 520px); }
+.pps-canvas[aria-busy='true'] { opacity: 0.55; }
+
+.pps-gone {
+  grid-area: 1 / 1;
+  max-width: 30ch;
+  margin: 0;
+  padding: var(--s-4);
+  text-align: center;
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+}
+
+/* ── the two pickers ─────────────────────────────────────────────────────── */
+
+.pps-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-3) var(--s-5);
+}
+
+/* ── the way out ─────────────────────────────────────────────────────────── */
+
+.pps-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 100%;
+}
+.pps-actions__row {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: center;
+}
+.pps-actions__row > * { flex: 1 1 0; }
+
+/* ── the affordance, where the Codex keeps it ────────────────────────────── */
+
+.pps-detail-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-1) 0;
+  margin-bottom: calc(var(--s-4) * -1);
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pps-canvas { transform: none; transition: none; }
+}
+
+/* ── the affordance, where the Planet keeps it ───────────────────────────── */
+
+.pp-planet__hudacts {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+}

@@ -8,6 +8,7 @@ import { audio, haptics } from '../../audio'
 import { createGestureRecogniser } from '../../shell/gestures'
 import { useNavigation } from '../../shell/Navigator'
 import { Button, GoldLeafPill, Icon, IconButton, Paper, SheetsPill, useToast } from '../../ui'
+import { ShareButton } from '../../features/share'
 import KamiMark from '../codex/KamiMark'
 import { PROP_ART, PROP_BAND } from './propArt'
 import './planet.css'
@@ -252,7 +253,10 @@ export default function PlanetScreen() {
           <SheetsPill value={wallet.sheets} />
           <GoldLeafPill value={wallet.goldLeaf} />
         </div>
-        <IconButton icon="settings" label="Settings" variant="quiet" onClick={() => nav.push('settings')} />
+        <div className="pp-planet__hudacts">
+          <ShareButton subject={{ kind: 'planet' }} label="Share your planet" variant="quiet" />
+          <IconButton icon="settings" label="Settings" variant="quiet" onClick={() => nav.push('settings')} />
+        </div>
       </header>
 
       {/* The Daily Fold, waiting like a lit lantern. */}

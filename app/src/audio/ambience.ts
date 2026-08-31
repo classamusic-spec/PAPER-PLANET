@@ -5,6 +5,7 @@ import type { AudioEngine } from './engine'
 import { equalPowerCurve } from './engine'
 import type { Sampler } from './sampler'
 import { AMBIENCE } from './manifest'
+import { fileGain } from './mix'
 
 type BedId = Exclude<AmbienceId, 'none'>
 
@@ -72,6 +73,10 @@ export class Ambience {
 
       this.fadeOutCurrent(fadeSeconds)
 
+      // Beds ship 6 dB apart from each other; ./mix says what each one has to
+      // be multiplied by to sit in the same room as the others.
+      const level = fileGain(asset.file)
+
       const gain = ctx.createGain()
       gain.gain.value = 0.0001
       gain.connect(bus)
@@ -120,9 +125,50 @@ export class Ambience {
       const dur = Math.max(0.05, fadeSeconds)
       try {
         gain.gain.setValueAtTime(0.0001, now)
-        gain.gain.setValueCurveAtTime(equalPowerCurve(0, 1), now, dur)
+        gain.gain.setValueCurveAtTime(equalPowerCurve(0, level), now, dur)
       } catch {
-        gain.gain.value = 1
+        gain.gain.value = level
+      }
+    })
+  }
+
+  /**
+   * Play a short slice of a bed, for the Room fader in Settings to audition.
+   *
+   * Only used when no bed is actually running: when one *is*, the fader already
+   * moves it live and layering a second copy on top would turn every nudge of
+   * the slider into a gust. Fades at both ends, because a room does not start.
+   */
+  audition(id: BedId, seconds = 1.4): void {
+    const asset = AMBIENCE[id]
+    if (!asset) return
+    void this.sampler.load(asset.file).then((sample) => {
+      const ctx = this.engine.context()
+      const bus = this.engine.bus('ambience')
+      if (!ctx || !bus || !sample) return
+
+      const gain = ctx.createGain()
+      gain.gain.value = 0.0001
+      gain.connect(bus)
+
+      const level = fileGain(asset.file)
+      const span = Math.max(0.5, Math.min(asset.loopEnd, sample.buffer.duration - sample.leadIn) - seconds)
+      const src = ctx.createBufferSource()
+      src.buffer = sample.buffer
+
+      const now = ctx.currentTime + 0.02
+      const fade = Math.min(0.35, seconds / 3)
+      try {
+        src.start(now, sample.leadIn + Math.random() * span, seconds)
+        gain.gain.setValueAtTime(0.0001, now)
+        gain.gain.setValueCurveAtTime(equalPowerCurve(0, level), now, fade)
+        gain.gain.setValueCurveAtTime(equalPowerCurve(level, 0), now + seconds - fade, fade)
+      } catch {
+        try { src.disconnect(); gain.disconnect() } catch { /* ignore */ }
+        return
+      }
+      src.onended = (): void => {
+        try { src.disconnect(); gain.disconnect() } catch { /* already gone */ }
       }
     })
   }

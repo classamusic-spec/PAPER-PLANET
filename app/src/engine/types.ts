@@ -81,6 +81,13 @@ export interface FoldNode {
   bow: number
   /** True while this node belongs to the step currently in flight. */
   inFlight: boolean
+  /**
+   * Which crease made this hinge. One crease through N layers spawns N sibling
+   * hinges that are one physical fold, and anything that later re-opens that
+   * fold — a `pull` drawing a wing out — has to move all of them or the layers
+   * come apart in the player's hands. 0 means "not from a crease".
+   */
+  group: number
   local: Mat34
   world: Mat34
   dirty: boolean

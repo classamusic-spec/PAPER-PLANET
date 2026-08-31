@@ -8,6 +8,7 @@ import { masteryFor, evaluateUnlock, unlockContextFrom } from '../../systems'
 import { audio } from '../../audio'
 import { useNavigation } from '../../shell/Navigator'
 import { Icon, IconButton, Meter, Paper, Sheet, Tabs } from '../../ui'
+import { ShareButton } from '../../features/share'
 import SpeciesCard, { type CodexRow } from './SpeciesCard'
 import SpeciesDetail from './SpeciesDetail'
 import { useMedia } from './useMedia'
@@ -124,6 +125,13 @@ export default function CodexScreen() {
         {wide && current && (
           <aside className="pp-codex__aside">
             <Paper elevation={2} edge="cut" tone={0} grain>
+              <div className="pps-detail-bar">
+                <ShareButton
+                  subject={{ kind: 'species', speciesId: current.id }}
+                  label={`Share ${current.name}`}
+                  variant="quiet"
+                />
+              </div>
               <SpeciesDetail species={current} onFold={onFold} />
             </Paper>
           </aside>
@@ -138,12 +146,21 @@ export default function CodexScreen() {
           note={current?.binomial}
         >
           {current && (
-            <SpeciesDetail
-              species={current}
-              compactHeading
-              onFold={onFold}
-              onLeave={() => setSelected(null)}
-            />
+            <>
+              <div className="pps-detail-bar">
+                <ShareButton
+                  subject={{ kind: 'species', speciesId: current.id }}
+                  label={`Share ${current.name}`}
+                  variant="quiet"
+                />
+              </div>
+              <SpeciesDetail
+                species={current}
+                compactHeading
+                onFold={onFold}
+                onLeave={() => setSelected(null)}
+              />
+            </>
           )}
         </Sheet>
       )}

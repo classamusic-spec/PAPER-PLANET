@@ -1,0 +1,247 @@
+/* PAPER PLANET — the Studio's teacher, and the two controls that undo it. */
+
+/* ══ the ghost hand ═══════════════════════════════════════════════════════ */
+
+.pp-coach {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  /* Nothing here is ever a tap target — the paper underneath always wins. */
+  touch-action: none;
+}
+
+.pp-coach__ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  animation: pp-coach-in var(--t-slow) var(--ease-settle) both;
+}
+
+/* The route: a pencilled line the finger will follow. */
+.pp-coach__route {
+  stroke: var(--ink);
+  stroke-opacity: 0.3;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 7 7;
+}
+
+.pp-coach__tick {
+  stroke: var(--ink);
+  stroke-opacity: 0.42;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pp-coach__arrow {
+  fill: var(--ink);
+  fill-opacity: 0.46;
+}
+
+/* The fingertip. A pad of light paper with a warm cast shadow — a hand between
+   the lamp and the sheet, not a cursor. */
+.pp-coach__contact {
+  stroke: var(--kincha);
+  stroke-width: 2.5;
+  opacity: 0.3;
+}
+
+.pp-coach__pulse {
+  stroke: var(--beni);
+  stroke-width: 3;
+  opacity: 0;
+}
+
+.pp-coach__cast {
+  fill: rgba(var(--shadow-tint), 0.34);
+}
+
+.pp-coach__pad {
+  fill: var(--paper-0);
+  fill-opacity: 0.94;
+  stroke: var(--ink);
+  stroke-width: 2.4;
+  stroke-opacity: 0.72;
+}
+
+.pp-coach__nail {
+  fill: var(--ink);
+  fill-opacity: 0.13;
+}
+
+/* ══ the note ═════════════════════════════════════════════════════════════ */
+
+.pp-coach__note-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 1%;
+  width: min(94%, 380px);
+  transform: translateX(-50%);
+  animation: pp-coach-note var(--t-slow) var(--ease-settle) both;
+  animation-delay: 60ms;
+}
+
+.pp-coach__note .pp-paper__body {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+
+.pp-coach__mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--kincha-deep);
+}
+
+.pp-coach__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-family: var(--font-text);
+  text-align: left;
+}
+
+.pp-coach__place {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
+  text-transform: none;
+}
+
+.pp-coach__act {
+  font-size: var(--fs-body-l);
+  font-weight: 800;
+  line-height: var(--lh-snug);
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+@keyframes pp-coach-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pp-coach-note {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+/* High ink: the teacher has to be readable at a glance, on any paper. */
+:root[data-high-ink='true'] .pp-coach__route {
+  stroke-opacity: 0.5;
+  stroke-width: 3;
+}
+:root[data-high-ink='true'] .pp-coach__tick {
+  stroke-opacity: 0.68;
+}
+:root[data-high-ink='true'] .pp-coach__arrow {
+  fill-opacity: 0.7;
+}
+:root[data-high-ink='true'] .pp-coach__pad {
+  stroke-opacity: 1;
+  stroke-width: 3;
+  fill-opacity: 1;
+}
+:root[data-high-ink='true'] .pp-coach__contact {
+  opacity: 0.55;
+}
+:root[data-high-ink='true'] .pp-coach__place {
+  color: var(--ink);
+}
+
+/* The hand is already still under reduced motion; kill the arrival too. */
+:root[data-reduced-motion='true'] .pp-coach__ink,
+:root[data-reduced-motion='true'] .pp-coach__note-wrap {
+  animation-duration: var(--t-quick);
+  animation-delay: 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-coach__ink,
+  .pp-coach__note-wrap {
+    animation-duration: var(--t-quick);
+    animation-delay: 0ms;
+  }
+}
+
+/* Landscape phone has no room for a card over the paper. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .pp-coach__note-wrap {
+    width: min(96%, 420px);
+    bottom: -2%;
+  }
+  .pp-coach__note .pp-paper__body {
+    padding: var(--s-2) var(--s-3);
+  }
+  .pp-coach__mark {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* ══ the stage: the paper, with the teacher laid over it ══════════════════ */
+
+.pp-studio__stage {
+  position: relative;
+  display: block;
+}
+
+/* ══ unfold & show me ═════════════════════════════════════════════════════ */
+
+/* Unfold · where you are · Show me. Both hands can reach both ends. */
+.pp-studio__tools {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--s-2);
+  width: min(100%, 460px);
+}
+
+.pp-studio__tool {
+  white-space: nowrap;
+}
+
+.pp-studio__tools > .pp-studio__tool:first-child {
+  justify-self: start;
+}
+.pp-studio__tools > .pp-studio__tool:last-child {
+  justify-self: end;
+}
+
+.pp-studio__tools > .pp-studio__count {
+  text-align: center;
+  padding: 0 var(--s-1);
+}
+
+/* Narrow phones: the labels go, the paper cards and their 44pt targets stay. */
+@media (max-width: 359px) {
+  .pp-studio__tool .pp-btn__label {
+    display: none;
+  }
+}
+
+/* An offer, never an alarm: the hint warms only while the teacher is out. */
+.pp-studio__tool.is-nudged {
+  --face: var(--kincha-soft);
+  --acc-label: var(--kincha-deep);
+  color: var(--kincha-deep);
+}

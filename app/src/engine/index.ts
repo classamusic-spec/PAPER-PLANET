@@ -78,7 +78,7 @@ export class Fold3D implements FoldEngine {
   private fitBuf = new Float64Array(8192)
   private fitFill = DEFAULT_FILL
   private fitOrbit = DEFAULT_ORBIT
-  private cres: CreaseResult = { nodes: [], moved: [], extent: 0, ax: 0, ay: 0, bx: 0, by: 0 }
+  private cres: CreaseResult = { nodes: [], moved: [], extent: 0, ax: 0, ay: 0, bx: 0, by: 0, group: 0 }
   private axisBuf = new Float64Array(4)
   private opts: RenderOptions = {
     hintFrom: null, hintTo: null, targets: [], axisFrom: null, axisTo: null, shadow: true,
@@ -519,37 +519,18 @@ export class Fold3D implements FoldEngine {
       return
     }
 
-    if (spine.parent < 0) {
-      // No flap here yet — degrade to an honest 180 degree fold of the region.
-      const res = this.crease(c0, {
-        angle: angle1, kind: 'reverse', scope: scope1,
-        foldUp: inside, invertLayers: false, stackBias: 0,
-      })
-      if (res) this.record(plan, 0, 1)
-      return
-    }
-
-    const w1 = this.worldHingeDir(c0, scope1)
-    const first = this.crease(c0, {
-      angle: angle1, kind: 'reverse', scope: scope1,
-      foldUp: inside, invertLayers: inside, stackBias: 0,
+    // One crease, every layer. The mirrored second half this used to synthesise
+    // is now unnecessary and actively wrong: applyCrease pulls the one line into
+    // each layer's own frame, so both faces of the flap turn about the SAME line
+    // in space, with the angle sign that makes their world turns agree. Placing
+    // a hand-mirrored line on the far layer instead put its crease somewhere
+    // else entirely, which is what tore the head off the crane.
+    const scope = spine.parent < 0 ? scope1 : reverseScope(sheet, scope1)
+    const res = this.crease(c0, {
+      angle: angle1, kind: 'reverse', scope,
+      foldUp: inside, invertLayers: inside && spine.parent >= 0, stackBias: 0,
     })
-    if (first) this.record(plan, 0, 1)
-
-    // Mirror the crease and the tap target into the other layer of the flap.
-    const c1 = mirrorCrease(c0, spine.ax, spine.ay, spine.bx, spine.by)
-    const t2 = mirrorPoint(target, spine.ax, spine.ay, spine.bx, spine.by)
-    const fi2 = sheet.facetAtMaterial(t2[0], t2[1])
-    const scope2 = this.resolveScope(fi2 >= 0 ? sheet.facets[fi2].node : scope1, c1)
-    if (scope2 === scope1) return
-
-    const w2 = this.worldHingeDir(c1, scope2)
-    const agree = w1[0] * w2[0] + w1[1] * w2[1] + w1[2] * w2[2] >= 0 ? 1 : -1
-    const second = this.crease(c1, {
-      angle: angle1 * agree, kind: 'reverse', scope: scope2, exclude: scope1,
-      foldUp: inside, invertLayers: inside, stackBias: 0,
-    })
-    if (second) this.record(plan, 0, 1)
+    if (res) this.record(plan, 0, 1)
   }
 
   /**
@@ -612,7 +593,17 @@ export class Fold3D implements FoldEngine {
     })) this.record(plan, 0.3, 1)
   }
 
-  /** Pull a hidden flap out: re-open an existing hinge and lift it to the top. */
+  /**
+   * Pull a hidden flap out: re-open an existing hinge and lift it to the top.
+   *
+   * A wing is not one sheet, it is a stack of them held by one crease, and that
+   * crease is a whole GROUP of sibling hinges. Re-opening only the hinge under
+   * the finger swings one layer and leaves the rest — which is precisely how a
+   * crane ends up with a triangle floating loose beside it. So the whole group
+   * moves, each sibling to the angle that reproduces one turn in space: the
+   * siblings whose axis was flipped when the crease was laid take the opposite
+   * sign, which is exactly what the sign of their resting angle records.
+   */
   private planPull(step: FoldStep, plan: StepPlan): void {
     const creases = step.creases ?? []
     const sheet = this.sheet
@@ -623,30 +614,64 @@ export class Fold3D implements FoldEngine {
         ? midpoint(c0)
         : ([HALF, HALF] as Vec2)
     const fi = sheet.facetAtMaterial(target[0], target[1])
-    let node = fi >= 0 ? sheet.facets[fi].node : 0
+    const under = fi >= 0 ? sheet.facets[fi].node : 0
+    let node = under
 
     if (c0) {
+      // Only re-open a hinge the gesture is genuinely ON. Grabbing whatever
+      // hinge happens to own the facet under the finger is how "draw the wing
+      // out" ended up re-opening the crane's spine and unfolding the bird.
       orientAxis(c0, this.axisBuf)
-      const match = this.findAxisMatch(node, this.axisBuf)
-      if (match >= 0) node = match
+      node = this.findAxisMatch(under, this.axisBuf)
     }
 
     if (node > 0) {
       const n = sheet.nodes[node]
       const rest = c0 ? signedAngle(c0) : n.angle * 0.35
-      plan.nodes.push(node)
-      plan.from.push(n.angle)
-      plan.rest.push(rest)
-      plan.win0.push(0)
-      plan.win1.push(1)
-      plan.bowScale.push(1)
-      n.inFlight = true
-      n.rest = rest
-      plan.raise.push(node)
-      this.buildBendFor(node, plan)
+      const group = n.group
+      const nodes = sheet.nodes
+      const lead = n.rest >= 0 ? 1 : -1
+      for (let i = 0; i < nodes.length; i++) {
+        const k = nodes[i]
+        if (i !== node && (group === 0 || k.group !== group)) continue
+        const sign = i === node ? 1 : (k.rest >= 0 ? 1 : -1) * lead
+        plan.nodes.push(i)
+        plan.from.push(k.angle)
+        plan.rest.push(rest * sign)
+        plan.win0.push(0)
+        plan.win1.push(1)
+        plan.bowScale.push(1)
+        k.inFlight = true
+        k.rest = rest * sign
+        plan.raise.push(i)
+        this.buildBendFor(i, plan)
+      }
       return
     }
-    if (c0) this.planSimple(step, plan)
+    if (!c0) return
+    // Nothing to re-open: the flap is still buried in the stack, so this is a
+    // new fold of the layer under the finger — and it comes up on top.
+    const scope = this.resolveScope(under, c0)
+    if (this.crease(c0, {
+      angle: signedAngle(c0), kind: 'pull', scope,
+      foldUp: c0.direction === 'valley', invertLayers: false, stackBias: 1,
+    })) {
+      this.record(plan, 0, 1)
+      for (let i = 0; i < this.cres.nodes.length; i++) plan.raise.push(this.cres.nodes[i])
+    }
+    for (let i = 1; i < creases.length; i++) {
+      const c = creases[i]
+      const t = step.targets && step.targets[i] ? step.targets[i] : midpoint(c)
+      const f = sheet.facetAtMaterial(t[0], t[1])
+      const sc = this.resolveScope(f >= 0 ? sheet.facets[f].node : 0, c)
+      if (this.crease(c, {
+        angle: signedAngle(c), kind: 'pull', scope: sc,
+        foldUp: c.direction === 'valley', invertLayers: false, stackBias: 1,
+      })) {
+        this.record(plan, Math.min(0.22, i * 0.09), 1)
+        for (let k = 0; k < this.cres.nodes.length; k++) plan.raise.push(this.cres.nodes[k])
+      }
+    }
   }
 
   /** Freeze the current angles so a press can relax everything toward flat. */
@@ -822,25 +847,52 @@ export class Fold3D implements FoldEngine {
     return out
   }
 
-  /** Walk up from `node` looking for an existing hinge on (near enough) this axis. */
+  /**
+   * Walk up from `node` looking for an existing hinge on (near enough) this axis.
+   *
+   * Compared in SPACE, not in material coordinates: a hinge buried under a
+   * folded layer carries the crease pulled back into that layer's own frame, so
+   * its local numbers no longer look anything like the line the recipe wrote,
+   * even though it is the very fold the player is reaching for.
+   */
   private findAxisMatch(node: number, axis: Float64Array): number {
     const sheet = this.sheet
-    const dx = axis[2] - axis[0]
-    const dy = axis[3] - axis[1]
-    const l = Math.hypot(dx, dy)
+    sheet.updateWorld()
+    const w0 = sheet.nodes[0].world
+    const ax = w0[0] * axis[0] + w0[1] * axis[1] + w0[3]
+    const ay = w0[4] * axis[0] + w0[5] * axis[1] + w0[7]
+    const az = w0[8] * axis[0] + w0[9] * axis[1] + w0[11]
+    const bx = w0[0] * axis[2] + w0[1] * axis[3] + w0[3]
+    const by = w0[4] * axis[2] + w0[5] * axis[3] + w0[7]
+    const bz = w0[8] * axis[2] + w0[9] * axis[3] + w0[11]
+    const dx = bx - ax
+    const dy = by - ay
+    const dz = bz - az
+    const l = Math.hypot(dx, dy, dz)
     if (!(l > EPS)) return -1
     const ux = dx / l
     const uy = dy / l
+    const uz = dz / l
     let n = node
     let guard = 0
     while (n > 0 && guard++ < 256) {
       const nd = sheet.nodes[n]
-      const ex = nd.bx - nd.ax
-      const ey = nd.by - nd.ay
-      const el = Math.hypot(ex, ey)
+      const m = sheet.flightParentWorld(n)
+      const hax = m[0] * nd.ax + m[1] * nd.ay + m[3]
+      const hay = m[4] * nd.ax + m[5] * nd.ay + m[7]
+      const haz = m[8] * nd.ax + m[9] * nd.ay + m[11]
+      const ex = m[0] * nd.bx + m[1] * nd.by + m[3] - hax
+      const ey = m[4] * nd.bx + m[5] * nd.by + m[7] - hay
+      const ez = m[8] * nd.bx + m[9] * nd.by + m[11] - haz
+      const el = Math.hypot(ex, ey, ez)
       if (el > EPS) {
-        const dot = Math.abs((ex * ux + ey * uy) / el)
-        const perp = Math.abs((nd.ax - axis[0]) * -uy + (nd.ay - axis[1]) * ux)
+        const dot = Math.abs((ex * ux + ey * uy + ez * uz) / el)
+        // Perpendicular offset between the two (near-parallel) lines.
+        const rx = hax - ax
+        const ry = hay - ay
+        const rz = haz - az
+        const along = rx * ux + ry * uy + rz * uz
+        const perp = Math.hypot(rx - ux * along, ry - uy * along, rz - uz * along)
         if (dot > 0.985 && perp < 14) return n
       }
       n = nd.parent
@@ -910,6 +962,22 @@ function magnitude(step: FoldStep, dflt: number): number {
 
 function midpoint(c: Crease): Vec2 {
   return [(finite(c.a[0], 500) + finite(c.b[0], 500)) * 0.5, (finite(c.a[1], 500) + finite(c.b[1], 500)) * 0.5]
+}
+
+/**
+ * How wide a reverse fold reaches.
+ *
+ * A reverse acts on a flap, and a flap's layers are siblings scattered across
+ * the fold tree, not one subtree — so scoping to the tapped layer creases one
+ * face of the head and leaves the other flat. The crease's own half-plane is
+ * what limits the move; widening to the whole model lets every layer at the tip
+ * turn together, which is what a reverse fold is.
+ */
+function reverseScope(sheet: Sheet, scope: number): number {
+  let n = scope
+  let guard = 0
+  while (n > 0 && guard++ < 256) n = sheet.nodes[n].parent
+  return n
 }
 
 /** Reflect a material-space point across a model-plane line. */

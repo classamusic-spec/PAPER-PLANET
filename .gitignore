@@ -2,6 +2,8 @@
 .DS_Store
 .allscreens.mjs
 .audio-qa.mjs
+.coach-shots.mjs
+.coach-test.mjs
 .content-audit.ts
 .diag*.mjs
 .env
@@ -9,7 +11,9 @@
 .fold-e2e.mjs
 .icons.mjs
 .live-test.mjs
+.reveal-shot.mjs
 .seed.mjs
+.shoot-share.mjs
 .shot.mjs
 .studio-test.mjs
 .vercel

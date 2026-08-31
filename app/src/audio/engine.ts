@@ -1,6 +1,7 @@
 // PAPER PLANET — the WebAudio graph: buses, focus ducking, safety limiter, iOS unlock, lifecycle.
 
 import type { AudioBus } from '../contracts'
+import { FOCUS_DUCK_DB, FOCUS_RAMP_IN, FOCUS_RAMP_OUT, LIMITER, busGain } from './mix'
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext }
 
@@ -34,33 +35,26 @@ export function equalPowerCurve(from: number, to: number, points = 64): Float32A
   return c
 }
 
+/**
+ * Fader positions, not gains.
+ *
+ * Every one of these is a *position on the rail*; `busGain` in ./mix turns it
+ * into a level, applying that bus's ceiling and taper. The beds default to the
+ * middle of their travel so there is somewhere to go in both directions — the
+ * ceiling, not the default, is what guarantees a room stays a room.
+ */
 const DEFAULT_VOLUMES: Record<AudioBus, number> = {
   master: 0.9,
   sfx: 1,
-  ambience: 0.3,
-  music: 0.28,
+  ambience: 0.5,
+  music: 0.5,
 }
 
-/**
- * A hard ceiling on the beds, applied on top of the player's setting.
- *
- * Ambience is meant to sit *under* the paper — BRAND section 8 calls it a room
- * tone, and the paper is the instrument. Tested on a phone it was competing
- * with the creases instead of sitting behind them, so the bus is trimmed at
- * source: even at a setting of 1.0 the bed stays a bed. The trim also reaches
- * players whose saved level predates this change, which a default alone
- * would not.
- */
-const BUS_TRIM: Partial<Record<AudioBus, number>> = { ambience: 0.42, music: 0.6 }
-
-/** Player setting -> actual gain, with the bed trim folded in. */
-function busGain(bus: AudioBus, volume: number): number {
-  return Math.max(0, Math.min(1, volume)) * (BUS_TRIM[bus] ?? 1)
+/** The duck depths from ./mix, as the linear gains the graph wants. */
+const DUCK_GAIN: Record<'ambience' | 'music', number> = {
+  ambience: Math.pow(10, FOCUS_DUCK_DB.ambience / 20),
+  music: Math.pow(10, FOCUS_DUCK_DB.music / 20),
 }
-
-/** How far ambience and music drop while the player is folding. */
-const FOCUS_DUCK: Record<'ambience' | 'music', number> = { ambience: 0.42, music: 0.18 }
-const FOCUS_RAMP = 0.85
 
 /**
  * Owns the AudioContext and everything permanent hanging off it.
@@ -104,22 +98,23 @@ export class AudioEngine {
       return null
     }
 
-    // A gentle safety limiter. Not a loudness maximiser — it only catches the
-    // rare moment when many grains and a reward cue land on the same sample.
+    // A safety limiter, and only that — see LIMITER in ./mix for what it used
+    // to be doing instead. It exists for the moment a reward, a crease and a
+    // hundred grains land on the same sample, not for every crease.
     const limiter = ctx.createDynamicsCompressor()
-    limiter.threshold.value = -8
-    limiter.knee.value = 8
-    limiter.ratio.value = 10
-    limiter.attack.value = 0.004
-    limiter.release.value = 0.22
+    limiter.threshold.value = LIMITER.thresholdDb
+    limiter.knee.value = LIMITER.kneeDb
+    limiter.ratio.value = LIMITER.ratio
+    limiter.attack.value = LIMITER.attack
+    limiter.release.value = LIMITER.release
     limiter.connect(ctx.destination)
 
     const master = ctx.createGain()
-    master.gain.value = this.volumes.master
+    master.gain.value = busGain('master', this.volumes.master)
     master.connect(limiter)
 
-    // Raw gain node. The bed trim is applied at the bus nodes only, never on
-    // the duck stages, or it would be counted twice.
+    // Raw gain node. The bus ceiling and taper are applied at the bus nodes
+    // only, never on the duck stages, or they would be counted twice.
     const mk = (v: number): GainNode => {
       const g = ctx.createGain()
       g.gain.value = v
@@ -279,7 +274,7 @@ export class AudioEngine {
       window.clearTimeout(this.suspendTimer)
       this.suspendTimer = null
     }
-    const restore = (): void => ramp(master.gain, this.volumes.master, 0.25, ctx)
+    const restore = (): void => ramp(master.gain, busGain('master', this.volumes.master), 0.25, ctx)
     if (ctx.state === 'running') restore()
     else void ctx.resume().then(restore).catch(() => undefined)
   }
@@ -303,7 +298,7 @@ export class AudioEngine {
   setFocusMode(on: boolean): void {
     if (this.focus === on) return
     this.focus = on
-    this.applyFocus(FOCUS_RAMP)
+    this.applyFocus(on ? FOCUS_RAMP_IN : FOCUS_RAMP_OUT)
   }
 
   isFocused(): boolean {
@@ -315,7 +310,7 @@ export class AudioEngine {
     if (!ctx) return
     for (const key of ['ambience', 'music'] as const) {
       const node = this.duckNodes[key]
-      if (node) ramp(node.gain, this.focus ? FOCUS_DUCK[key] : 1, seconds, ctx)
+      if (node) ramp(node.gain, this.focus ? DUCK_GAIN[key] : 1, seconds, ctx)
     }
   }
 

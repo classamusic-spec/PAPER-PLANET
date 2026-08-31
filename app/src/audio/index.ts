@@ -11,6 +11,9 @@ import { Music } from './music'
 import { haptics } from './haptics'
 import { AMBIENCE, PRELOAD_CORE, SFX, TEXTURES, TOTAL_BYTES } from './manifest'
 
+/** What the Room fader auditions when the player has chosen silence. */
+const PREVIEW_BED = 'meadow'
+
 export type { TextureId, AudioAsset, LoopAsset } from './manifest'
 export { AMBIENCE, SFX, TEXTURES, TOTAL_BYTES } from './manifest'
 
@@ -102,6 +105,34 @@ class PaperAudio implements AudioService {
   /** During a fold the paper is the star: ambience and music step back. */
   setFocusMode(on: boolean): void {
     this.engine.setFocusMode(on)
+  }
+
+  /**
+   * Play one short, representative sound on a bus, so a fader can be heard
+   * while it is moved rather than guessed at.
+   *
+   * Ambience is the odd one out: when a bed is already running the fader
+   * *is* the preview — it moves the real thing, live — and adding a second
+   * copy over the top would make every nudge a gust. So the slice only plays
+   * when the room is set to silence and there would otherwise be nothing to
+   * hear at all.
+   */
+  previewBus(bus: AudioBus): void {
+    void this.unlock()
+    switch (bus) {
+      case 'ambience': {
+        const live = this.ambience.currentId()
+        if (live === 'none') this.ambience.audition(PREVIEW_BED)
+        break
+      }
+      case 'music':
+        this.music.previewNote()
+        break
+      default:
+        // Master and Paper are both auditioned by the paper, because the paper
+        // is what this app is. A crisp crease is the shortest honest example.
+        this.sampler.playCue('crease.crisp')
+    }
   }
 
   /* ── loading ────────────────────────────────────────────────────────── */

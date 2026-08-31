@@ -15,6 +15,17 @@ const FLAT_ANGLE = 140 * DEG
 const MIN_SPLIT_AREA = 6
 /** Hard ceiling so a pathological recipe cannot melt a phone. */
 export const MAX_FACETS = 640
+/**
+ * How far out of the crease's own plane a layer may sit and still be considered
+ * part of the same sheet of paper for this fold, in model units (the sheet is
+ * 1000 across). Coplanar layers land at ~1e-10; a flap standing at even a
+ * degree is hundreds of units away.
+ */
+const PLANE_EPS = 1e-3
+/** Stride of `Sheet.laxis`: ax, ay, bx, by, angle, coplanar. */
+const AX = 6
+/** Two facets are still one piece of paper if their shared edge agrees to this. */
+export const JOIN_EPS = 1e-3
 
 export interface CreaseOptions {
   /** Signed rotation in radians. */
@@ -53,10 +64,13 @@ export interface CreaseResult {
   ay: number
   bx: number
   by: number
+  /** Stamp shared by every hinge this one crease made. 0 when nothing moved. */
+  group: number
 }
 
 const POS: number[] = []
 const NEG: number[] = []
+const SETTLE = matCreate()
 const C2 = new Float64Array(2)
 const AXIS = new Float64Array(4)
 
@@ -78,6 +92,7 @@ export function orientAxis(crease: Crease, out: Float64Array): void {
 }
 
 let facetSeq = 0
+let creaseSeq = 0
 
 /**
  * The paper.
@@ -106,6 +121,10 @@ export class Sheet {
 
   private worldDirty = true
   private rootWorld: Mat34 = matCreate()
+  /** Scratch: the crease being applied, pulled back into every node's own frame. */
+  private laxis = new Float64Array(64 * AX)
+  /** Scratch: world matrices as they will be once the step in flight settles. */
+  private swld = new Float64Array(64 * 12)
 
   constructor() {
     this.reset()
@@ -114,6 +133,7 @@ export class Sheet {
   /** Back to one flat square of paper with a single root node. */
   reset(): void {
     facetSeq = 0
+    creaseSeq = 0
     this.nodes.length = 0
     this.facets.length = 0
     this.nodes.push(makeNode(-1, 0, 0, 0, 1, 0, 'crease'))
@@ -184,6 +204,141 @@ export class Sheet {
   /* ── creasing ──────────────────────────────────────────────────────────── */
 
   /**
+   * World matrices as they will stand once the step in flight has settled.
+   *
+   * A crease laid during a step is a line in the space the paper is folding
+   * INTO, not the space it is leaving. That distinction is what makes a
+   * multi-crease step — a collapse, a squash, a petal — come out right: the
+   * creases of one gesture happen together, so the second crease has to be
+   * expressed in the frame the first one is already carrying the paper to.
+   * Conjugating by the parent's settled turn is precisely what converts the
+   * engine's "parent then child" chain into the "cross this crease, then that
+   * one" order a folded sheet actually obeys. Without it two faces either side
+   * of an earlier crease compose their turns in opposite orders and rip apart.
+   */
+  private buildSettleWorld(): void {
+    this.updateWorld()
+    const nodes = this.nodes
+    const need = nodes.length * 12
+    if (this.swld.length < need) this.swld = new Float64Array(need * 2)
+    const S = this.swld
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i]
+      const o = i * 12
+      if (n.parent < 0) {
+        for (let k = 0; k < 12; k++) S[o + k] = this.rootWorld[k]
+        continue
+      }
+      matRotAboutLine(SETTLE, n.ax, n.ay, n.bx, n.by, n.inFlight ? n.rest : n.angle)
+      const p = n.parent * 12
+      for (let r = 0; r < 3; r++) {
+        const r4 = r * 4
+        const a0 = S[p + r4]
+        const a1 = S[p + r4 + 1]
+        const a2 = S[p + r4 + 2]
+        const a3 = S[p + r4 + 3]
+        S[o + r4] = a0 * SETTLE[0] + a1 * SETTLE[4] + a2 * SETTLE[8]
+        S[o + r4 + 1] = a0 * SETTLE[1] + a1 * SETTLE[5] + a2 * SETTLE[9]
+        S[o + r4 + 2] = a0 * SETTLE[2] + a1 * SETTLE[6] + a2 * SETTLE[10]
+        S[o + r4 + 3] = a0 * SETTLE[3] + a1 * SETTLE[7] + a2 * SETTLE[11] + a3
+      }
+    }
+  }
+
+  /**
+   * Pull one crease back into every node's own frame.
+   *
+   * THE INVARIANT THIS EXISTS TO KEEP. A crease is a line in *space*, not a line
+   * in material coordinates. Folding a stack turns every sheet in it about one
+   * physical line. But a layer that has already been folded carries a mirrored
+   * copy of the material plane — fold the kite's flap across the 22.5° crease
+   * and its local +x now points down the spine — so re-using the authored
+   * material line inside that layer hinges it about a *different* line in the
+   * world, and the flap rips away from the sheet it is joined to. That is
+   * exactly the failure a player sees as "the crane went crazy at the end".
+   *
+   * So: take the authored line where it sits in the root (unfolded) frame, and
+   * express that same world line in each node's own coordinates. Node world
+   * matrices are rigid, so the pullback is the transpose — exact and cheap.
+   *
+   * Two details carry the correctness:
+   *  - a layer whose plane is not the crease's plane is not on this crease at
+   *    all. It is marked non-coplanar and left where the caller's material axis
+   *    puts it, rather than being torn about a line it does not lie on.
+   *  - flipping the axis end for end flips the rotation, so when a layer's
+   *    moving half lands on the right the angle is negated with it and the
+   *    world turn comes out identical. That is what makes the two halves of a
+   *    reverse fold agree in space without guessing signs.
+   */
+  private buildLocalAxes(ax: number, ay: number, bx: number, by: number, angle: number): void {
+    const nodes = this.nodes
+    this.buildSettleWorld()
+    const S = this.swld
+    const need = nodes.length * AX
+    if (this.laxis.length < need) this.laxis = new Float64Array(need * 2)
+    const L = this.laxis
+    const w0 = S
+
+    // The authored line, where it lies in space on the unfolded reference sheet.
+    // Node 0 occupies the first twelve slots of the settle-world table.
+    const awx = w0[0] * ax + w0[1] * ay + w0[3]
+    const awy = w0[4] * ax + w0[5] * ay + w0[7]
+    const awz = w0[8] * ax + w0[9] * ay + w0[11]
+    const bwx = w0[0] * bx + w0[1] * by + w0[3]
+    const bwy = w0[4] * bx + w0[5] * by + w0[7]
+    const bwz = w0[8] * bx + w0[9] * by + w0[11]
+    // ...and which way the moving half lies, as a direction in space.
+    const mx = -(by - ay)
+    const my = bx - ax
+    const nwx = w0[0] * mx + w0[1] * my
+    const nwy = w0[4] * mx + w0[5] * my
+    const nwz = w0[8] * mx + w0[9] * my
+
+    for (let i = 0; i < nodes.length; i++) {
+      const b0 = i * 12
+      const o = i * AX
+      const dax = awx - S[b0 + 3]
+      const day = awy - S[b0 + 7]
+      const daz = awz - S[b0 + 11]
+      const lax = S[b0] * dax + S[b0 + 4] * day + S[b0 + 8] * daz
+      const lay = S[b0 + 1] * dax + S[b0 + 5] * day + S[b0 + 9] * daz
+      const laz = S[b0 + 2] * dax + S[b0 + 6] * day + S[b0 + 10] * daz
+      const dbx = bwx - S[b0 + 3]
+      const dby = bwy - S[b0 + 7]
+      const dbz = bwz - S[b0 + 11]
+      const lbx = S[b0] * dbx + S[b0 + 4] * dby + S[b0 + 8] * dbz
+      const lby = S[b0 + 1] * dbx + S[b0 + 5] * dby + S[b0 + 9] * dbz
+      const lbz = S[b0 + 2] * dbx + S[b0 + 6] * dby + S[b0 + 10] * dbz
+
+      if (!(Math.abs(laz) <= PLANE_EPS) || !(Math.abs(lbz) <= PLANE_EPS)) {
+        // This layer is not in the crease's plane: it is not on this fold.
+        L[o] = ax; L[o + 1] = ay; L[o + 2] = bx; L[o + 3] = by
+        L[o + 4] = angle
+        L[o + 5] = 0
+        continue
+      }
+
+      const lnx = S[b0] * nwx + S[b0 + 4] * nwy + S[b0 + 8] * nwz
+      const lny = S[b0 + 1] * nwx + S[b0 + 5] * nwy + S[b0 + 9] * nwz
+      // Is the moving half still the left of a->b once pulled back?
+      const left = -(lby - lay) * lnx + (lbx - lax) * lny
+      if (left >= 0) {
+        L[o] = lax; L[o + 1] = lay; L[o + 2] = lbx; L[o + 3] = lby
+        L[o + 4] = angle
+      } else {
+        L[o] = lbx; L[o + 1] = lby; L[o + 2] = lax; L[o + 3] = lay
+        L[o + 4] = -angle
+      }
+      L[o + 5] = 1
+    }
+  }
+
+  /** True when the crease last pulled back genuinely lies on this node's layer. */
+  private axisCoplanar(node: number): boolean {
+    return this.laxis[node * AX + 5] === 1
+  }
+
+  /**
    * Apply one crease. Every facet straddling the axis is split; the half on
    * `crease.side` is re-parented into a fresh hinge under whichever node
    * currently owns it, so a fold through N layers spawns N sibling hinges that
@@ -201,6 +356,7 @@ export class Sheet {
     out.nodes.length = 0
     out.moved.length = 0
     out.extent = 0
+    out.group = 0
     out.ax = ax
     out.ay = ay
     out.bx = bx
@@ -211,6 +367,11 @@ export class Sheet {
     const len = Math.sqrt(dx * dx + dy * dy)
     if (!(len > 1e-3)) return false
     const invLen = 1 / len
+
+    // Every layer folds about the SAME LINE IN SPACE, which is a different line
+    // in each layer's own material coordinates. See buildLocalAxes.
+    this.buildLocalAxes(ax, ay, bx, by, opts.angle)
+    const L = this.laxis
 
     const exclude = opts.exclude ?? -1
     const facets = this.facets
@@ -227,15 +388,27 @@ export class Sheet {
         kept.push(f)
         continue
       }
+      const o = f.node * AX
+      if (L[o + 5] === 0) {
+        // This layer's plane is not the crease's plane, so the crease is not on
+        // it. Folding it anyway about a line it does not carry is exactly how
+        // paper tears; leave it where it is.
+        kept.push(f)
+        continue
+      }
+      const fax = L[o]
+      const fay = L[o + 1]
+      const fbx = L[o + 2]
+      const fby = L[o + 3]
       if (f.area < MIN_SPLIT_AREA || kept.length > MAX_FACETS) {
         // Too small to be worth another cut: send it whole to the side it sits on.
-        const moves = sideDist(f.cx, f.cy, ax, ay, bx, by, invLen) > 0
+        const moves = sideDist(f.cx, f.cy, fax, fay, fbx, fby, invLen) > 0
         kept.push(f)
         if (moves) pushGroup(movingByNode, f.node, kept.length - 1)
         continue
       }
 
-      splitPolygon(f.poly, ax, ay, bx, by, POS, NEG)
+      splitPolygon(f.poly, fax, fay, fbx, fby, POS, NEG)
       const movePoly = POS
       const stayPoly = NEG
 
@@ -257,13 +430,22 @@ export class Sheet {
       return false
     }
 
-    // One new hinge per owning node — folding through the stack.
+    // One new hinge per owning node — folding through the stack. Each carries
+    // its parent's pullback of the crease, so all of them turn about one line
+    // in space and the stack stays a single sheet of paper. They also share a
+    // group stamp: they are one fold, and must be re-opened as one.
     this.facets = kept
+    const group = ++creaseSeq
+    out.group = group
     movingByNode.forEach((idxs, parent) => {
+      const o = parent * AX
       const nodeId = this.nodes.length
-      this.nodes.push(makeNode(parent, this.nodes[parent].depth + 1, ax, ay, bx, by, opts.kind))
+      this.nodes.push(makeNode(
+        parent, this.nodes[parent].depth + 1,
+        L[o], L[o + 1], L[o + 2], L[o + 3], opts.kind, group,
+      ))
       const nd = this.nodes[nodeId]
-      nd.rest = opts.angle
+      nd.rest = L[o + 4]
       nd.inFlight = true
       for (let k = 0; k < idxs.length; k++) {
         kept[idxs[k]].node = nodeId
@@ -274,9 +456,11 @@ export class Sheet {
 
     let extent = 0
     for (let i = 0; i < out.moved.length; i++) {
-      const p = kept[out.moved[i]].poly
+      const fm = kept[out.moved[i]]
+      const nd = this.nodes[fm.node]
+      const p = fm.poly
       for (let k = 0; k < p.length; k += 2) {
-        const d = Math.abs(sideDist(p[k], p[k + 1], ax, ay, bx, by, invLen))
+        const d = Math.abs(sideDist(p[k], p[k + 1], nd.ax, nd.ay, nd.bx, nd.by, invLen))
         if (d > extent) extent = d
       }
     }
@@ -446,16 +630,20 @@ export class Sheet {
     const len = Math.sqrt(dx * dx + dy * dy)
     if (!(len > EPS)) return false
     const invLen = 1 / len
+    // Ask the question the fold will actually ask: the line in each layer's frame.
+    this.buildLocalAxes(ax, ay, bx, by, 0)
+    const L = this.laxis
     const facets = this.facets
     for (let i = 0; i < facets.length; i++) {
       const f = facets[i]
       if (!this.isInSubtree(f.node, scope)) continue
       if (f.area < MIN_SPLIT_AREA) continue
+      const o = f.node * AX
       let pos = false
       let neg = false
       const p = f.poly
       for (let k = 0; k < p.length; k += 2) {
-        const d = sideDist(p[k], p[k + 1], ax, ay, bx, by, invLen)
+        const d = sideDist(p[k], p[k + 1], L[o], L[o + 1], L[o + 2], L[o + 3], invLen)
         if (d > ON_LINE) pos = true
         else if (d < -ON_LINE) neg = true
         if (pos && neg) return true
@@ -642,6 +830,7 @@ export function makeNode(
   parent: number, depth: number,
   ax: number, ay: number, bx: number, by: number,
   kind: FoldKind,
+  group = 0,
 ): FoldNode {
   return {
     parent,
@@ -652,6 +841,7 @@ export function makeNode(
     kind,
     bow: 0,
     inFlight: false,
+    group,
     local: matCreate(),
     world: matCreate(),
     dirty: true,

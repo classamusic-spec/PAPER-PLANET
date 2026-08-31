@@ -4,6 +4,7 @@ import type { PlayOptions, SfxCue } from '../contracts'
 import type { AudioEngine, SourceBus } from './engine'
 import { SFX } from './manifest'
 import type { AudioAsset } from './manifest'
+import { fileGain } from './mix'
 
 /** A decoded buffer plus where its audible content actually starts. */
 export interface LoadedSample {
@@ -22,6 +23,11 @@ export interface PlaySpec extends PlayOptions {
   gainJitter?: number
   /** Extra pitch jitter as a ratio, 0 disables. Default ±3%. */
   pitchJitter?: number
+  /**
+   * Override the mix trim for this file. Only the previews in Settings use
+   * this — everything else wants the mix, which is why it is the default.
+   */
+  trim?: number
 }
 
 const DEFAULT_GAIN_JITTER = 0.08
@@ -202,9 +208,14 @@ export class Sampler {
     const jitter = pj ? 1 + (Math.random() * 2 - 1) * pj : 1
     src.playbackRate.value = Math.pow(2, semis / 12) * jitter
 
+    // Three multiplications, in the order they mean something:
+    //   the mix trim   — where this file sits in the library (./mix)
+    //   the caller's volume — an artistic choice at the call site
+    //   the jitter     — so a hundred identical creases are not identical
     const gain = ctx.createGain()
     const vol = spec.volume ?? 1
-    gain.gain.value = Math.max(0, vol * (gj ? 1 + (Math.random() * 2 - 1) * gj : 1))
+    const trim = spec.trim ?? fileGain(file)
+    gain.gain.value = Math.max(0, trim * vol * (gj ? 1 + (Math.random() * 2 - 1) * gj : 1))
 
     src.connect(gain).connect(bus)
     src.onended = (): void => {
