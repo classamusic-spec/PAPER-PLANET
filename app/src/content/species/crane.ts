@@ -53,15 +53,20 @@ export const crane: SpeciesDef = {
       }),
       pull(
         'wing',
-        // From the apex of the half-fold, out past the shoulder. The hinge has
-        // to START on the spine: a wing crease that cuts ACROSS the spine drags
-        // the body fold along with the wing and the bird comes apart.
-        [crease(PT.TL, [SQ, 620], [900, 300], 'valley', 100)],
-        [600, 300],
-        [640, 180],
+        // The bird is closed along TL–BR, so the wing crease has to be drawn on
+        // the half the model is actually standing on — outside the spine, not
+        // across it. Running from the apex outward, the fold lifts the near
+        // wing and leaves the spine holding the two halves together. (Authored
+        // across the spine, its half-plane carries part of the body fold with
+        // it and the wing comes away in the player's hand.)
+        [crease(PT.TL, [700, SQ], [300, 800], 'valley', 100)],
+        [820, 470],
+        [980, 560],
         {
           instruction: 'Draw the near wing up and out.',
           detail: 'Only until it feels tight. Paper tells you where a wing stops.',
+          // The near layer, not the far one: one wing at a time.
+          targets: [[800, 450]],
         },
       ),
       press('set', {

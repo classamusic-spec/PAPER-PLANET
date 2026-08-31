@@ -11,7 +11,7 @@ import { masteryFor, type CollectionSummary } from '../../systems'
 import { RARITY_LABEL, RARITY_TOKEN, type CardData, type CardKami, type CardShape } from './types'
 
 /** How many Kami a planet card can hold before it stops being a portrait. */
-const CROWD: Record<CardShape, number> = { square: 7, story: 9 }
+const CROWD: Record<CardShape, number> = { square: 6, story: 7 }
 
 const RARITY_RANK: Record<Rarity, number> = { common: 0, uncommon: 1, rare: 2, mythic: 3 }
 
@@ -27,11 +27,21 @@ function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-/** "meadow, shore and forest" — an Oxford-free list, the way the voice writes. */
+/** "the meadow, the shore and the forest" — an Oxford-free list, as the voice writes. */
 function listOf(names: string[]): string {
   if (names.length === 0) return ''
   if (names.length === 1) return names[0]
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+const SMALL = [
+  'No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six',
+  'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve',
+]
+
+/** Small numbers are written out. A sentence does not open with a digit. */
+function count(n: number): string {
+  return n >= 0 && n < SMALL.length ? SMALL[n] : String(n)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -135,19 +145,27 @@ export function planetCard(input: PlanetInput): CardData {
     return [{ key: k.uid, art: species.art, name: k.nickname?.trim() || species.name, golden: k.golden }]
   })
 
+  /* biome names already carry their article — "The Meadow" — so the sentence
+     borrows the first one's and lowercases the rest */
   const biomeNames = biomes
     .map((id) => getBiome(id)?.name.toLowerCase())
     .filter((n): n is string => Boolean(n))
 
   const lines: string[] = []
-  if (biomeNames.length) lines.push(`The ${listOf(biomeNames)} are open.`)
-  if (summary.golden > 0) lines.push(`${summary.golden} folded in gold leaf.`)
-  if (summary.mastered > 0) lines.push(`${summary.mastered} mastered.`)
+  if (biomeNames.length) {
+    const list = listOf(biomeNames)
+    lines.push(`${list.charAt(0).toUpperCase()}${list.slice(1)} ${biomeNames.length === 1 ? 'is' : 'are'} open.`)
+  }
+  if (summary.golden > 0) {
+    lines.push(`${count(summary.golden)} Kami ${summary.golden === 1 ? 'is' : 'are'} gold leaf.`)
+  } else if (summary.mastered > 0) {
+    lines.push(`${count(summary.mastered)} ${summary.mastered === 1 ? 'fold' : 'folds'} mastered.`)
+  }
 
   const earliest = kami.reduce((min, k) => Math.min(min, k.foldedAt), now)
   const provenance = [
-    kami.length > 0 ? `Tending since ${formatDate(earliest)}` : 'A planet waiting for its first fold',
-    formatDate(now),
+    kami.length > 0 ? `Tending since ${formatDate(earliest)}` : 'Waiting for its first fold',
+    `Today, ${formatDate(now)}`,
   ]
 
   const alt = [
@@ -162,7 +180,7 @@ export function planetCard(input: PlanetInput): CardData {
 
   return {
     title: 'My planet',
-    subtitle: `${summary.kami} ${summary.kami === 1 ? 'Kami' : 'Kami'} · ${summary.collected} of ${summary.total} folds`,
+    subtitle: `${summary.kami} Kami · ${summary.collected} of ${summary.total} folds`,
     stamp: { label: 'The collection', token: 'matcha' },
     tag: `${summary.collected} of ${summary.total}`,
     fact: lines.join(' ') || null,

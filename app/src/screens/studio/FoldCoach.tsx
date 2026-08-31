@@ -12,10 +12,11 @@ import type { Vec2 } from '../../contracts'
 import { Icon, Paper, useElementSize } from '../../ui'
 import {
   COACH_TIMING,
-  REST_PHASE,
   demoGeometry,
+  ORBIT_ANCHORS,
   ghostsAt,
   placeOf,
+  restPhase,
   type CoachAnchors,
   type CoachGeometry,
   type CoachLesson,
@@ -57,7 +58,14 @@ function arrowHead(at: Vec2, u: Vec2, size: number): string {
   } ${at[1] - u[1] * size - ny * size * 0.62}Z`
 }
 
-/** The route drawn under the hand: where this gesture goes. */
+/**
+ * The route drawn under the hand: where this gesture goes.
+ *
+ * Suppressed when the coach is tracing FoldCanvas's own crease guide, which
+ * already draws the dashed line, the arrow and the handle. Only a demonstration
+ * playing away from those anchors — or one with the guides switched off — needs
+ * to draw its own path.
+ */
 function Route({ move, g }: { move: CoachLesson['move']; g: CoachGeometry }) {
   const head = g.tip * 0.86
   const line = `M${g.a[0]} ${g.a[1]}L${g.b[0]} ${g.b[1]}`
@@ -100,7 +108,7 @@ function Route({ move, g }: { move: CoachLesson['move']; g: CoachGeometry }) {
           <path className="pp-coach__route" d={line} fill="none" />
           <path
             className="pp-coach__tick"
-            d={`${chevron(g.a, g.unit, head * 0.6, -1)}${chevron(g.b, g.unit, head * 0.6, 1)}`}
+            d={`${chevron(g.a, g.unit, head * 0.82, -1)}${chevron(g.b, g.unit, head * 0.82, 1)}`}
             fill="none"
           />
         </>
@@ -117,30 +125,11 @@ function Route({ move, g }: { move: CoachLesson['move']; g: CoachGeometry }) {
 }
 
 /** One fingertip: a contact ring, a cast shadow, and the pad itself. */
-function GhostTip({ r, index, refs }: { r: number; index: number; refs: GhostRefs }) {
+function GhostTip({ r }: { r: number }) {
   return (
-    <g
-      className="pp-coach__ghost"
-      ref={(el) => {
-        refs.root[index] = el
-      }}
-    >
-      <circle
-        className="pp-coach__contact"
-        r={r * 1.9}
-        fill="none"
-        ref={(el) => {
-          refs.contact[index] = el
-        }}
-      />
-      <circle
-        className="pp-coach__pulse"
-        r={r}
-        fill="none"
-        ref={(el) => {
-          refs.pulse[index] = el
-        }}
-      />
+    <g className="pp-coach__ghost">
+      <circle className="pp-coach__contact" r={r * 1.9} fill="none" />
+      <circle className="pp-coach__pulse" r={r} fill="none" />
       <ellipse className="pp-coach__cast" cx={1.6} cy={2.6} rx={r * 0.84} ry={r} />
       <ellipse className="pp-coach__pad" rx={r * 0.84} ry={r} />
       <ellipse className="pp-coach__nail" cy={-r * 0.3} rx={r * 0.42} ry={r * 0.48} />
@@ -148,43 +137,47 @@ function GhostTip({ r, index, refs }: { r: number; index: number; refs: GhostRef
   )
 }
 
-interface GhostRefs {
-  root: (SVGGElement | null)[]
-  contact: (SVGCircleElement | null)[]
-  pulse: (SVGCircleElement | null)[]
-}
-
 export default function FoldCoach({ lesson, live, authored, guides, reducedMotion }: FoldCoachProps) {
   const [hostRef, size] = useElementSize<HTMLDivElement>(!!lesson)
-  const refs = useRef<GhostRefs>({ root: [], contact: [], pulse: [] })
+  const inkRef = useRef<SVGSVGElement | null>(null)
   const rafRef = useRef(0)
 
   const move = lesson?.move ?? 'sweep'
   const fingers = lesson?.fingers ?? 1
-  const g = lesson ? demoGeometry(live, authored, size, move) : null
+  const orbit = lesson?.topic === 'orbit'
+  const g = lesson ? demoGeometry(orbit ? null : live, orbit ? ORBIT_ANCHORS : authored, size, move) : null
+  /* A press has no line to duplicate, so its ring is always welcome. */
+  const showRoute = !!g && (!g.traced || !guides || move === 'press' || move === 'tap')
+  /* Never let the note cover the handle the note is talking about. */
+  const noteAtTop = !!g && size.h > 0 && g.a[1] > size.h * 0.58
 
   /* The hand is animated by mutating the SVG, not by re-rendering React sixty
      times a second. It demonstrates a few times and then rests — a teacher
      showing you, not a looping GIF. */
   useEffect(() => {
-    if (!g || !lesson) return
+    const ink = inkRef.current
+    if (!g || !lesson || !ink) return
+    /* Resolved once, then only written to — no querying inside the loop. */
+    const parts = Array.from(ink.querySelectorAll<SVGGElement>('.pp-coach__ghost')).map((root) => ({
+      root,
+      contact: root.querySelector<SVGCircleElement>('.pp-coach__contact'),
+      pulse: root.querySelector<SVGCircleElement>('.pp-coach__pulse'),
+    }))
+
     const apply = (phase: number): void => {
       const ghosts: Ghost[] = ghostsAt(move, fingers, g, phase)
-      for (let i = 0; i < ghosts.length; i++) {
+      for (let i = 0; i < ghosts.length && i < parts.length; i++) {
         const ghost = ghosts[i]
-        const root = refs.current.root[i]
-        if (!root) continue
+        const { root, contact, pulse } = parts[i]
         root.setAttribute(
           'transform',
           `translate(${ghost.pos[0].toFixed(2)} ${ghost.pos[1].toFixed(2)}) rotate(${ghost.angle.toFixed(1)})`,
         )
         root.setAttribute('opacity', ghost.alpha.toFixed(3))
-        const contact = refs.current.contact[i]
         if (contact) {
           contact.setAttribute('r', (g.tip * (2.4 - ghost.press * 0.62)).toFixed(2))
           contact.setAttribute('opacity', (0.14 + ghost.press * 0.34).toFixed(3))
         }
-        const pulse = refs.current.pulse[i]
         if (pulse) {
           pulse.setAttribute('r', (g.tip * (1 + ghost.pulse * 2.1)).toFixed(2))
           pulse.setAttribute('opacity', (ghost.pulse > 0 ? 0.5 * (1 - ghost.pulse) : 0).toFixed(3))
@@ -193,7 +186,7 @@ export default function FoldCoach({ lesson, live, authored, guides, reducedMotio
     }
 
     if (reducedMotion) {
-      apply(REST_PHASE)
+      apply(restPhase(move))
       return
     }
 
@@ -202,7 +195,7 @@ export default function FoldCoach({ lesson, live, authored, guides, reducedMotio
     const tick = (now: number): void => {
       const elapsed = now - t0
       if (elapsed >= span) {
-        apply(REST_PHASE)
+        apply(restPhase(move))
         return
       }
       apply((elapsed % COACH_TIMING.cycle) / COACH_TIMING.cycle)
@@ -219,19 +212,20 @@ export default function FoldCoach({ lesson, live, authored, guides, reducedMotio
       {lesson && g && (
         <>
           <svg
+            ref={inkRef}
             className="pp-coach__ink"
             viewBox={`0 0 ${size.w} ${size.h}`}
             width={size.w}
             height={size.h}
             aria-hidden="true"
           >
-            <Route move={move} g={g} />
+            {showRoute && <Route move={move} g={g} />}
             {Array.from({ length: fingers }, (_, i) => (
-              <GhostTip key={i} index={i} r={g.tip} refs={refs.current} />
+              <GhostTip key={i} r={g.tip} />
             ))}
           </svg>
 
-          <div className="pp-coach__note-wrap">
+          <div className="pp-coach__note-wrap" data-at={noteAtTop ? 'top' : 'bottom'}>
             <Paper
               className="pp-coach__note"
               elevation={2}

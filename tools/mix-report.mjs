@@ -4,21 +4,24 @@
 // the trims the app will apply, and prints where every family actually lands.
 // Node only, never shipped.
 //
-//   node tools/mix-report.mjs            after (the mix as it stands)
-//   node tools/mix-report.mjs --before   before (no trims, the old buses)
+// Run it from app/, which is where tsx lives:
+//
+//   cd app && node --import tsx ../tools/mix-report.mjs            the mix as it stands
+//   cd app && node --import tsx ../tools/mix-report.mjs --before   the mix before this pass
 
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { pathToFileURL } from 'node:url'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const SRC = path.join(HERE, '..', 'app', 'src', 'audio')
-const LEVELS_JSON = path.join(HERE, '.cache', 'levels.json')
 
 const mix = await import(pathToFileURL(path.join(SRC, 'mix.ts')).href)
 const manifest = await import(pathToFileURL(path.join(SRC, 'manifest.ts')).href)
-const raw = JSON.parse(readFileSync(LEVELS_JSON, 'utf8'))
+const granular = await import(pathToFileURL(path.join(SRC, 'granular.ts')).href)
+// Straight from the table the app itself reads, so the report cannot describe
+// a mix the app is not actually playing.
+const { LEVELS } = await import(pathToFileURL(path.join(SRC, 'levels.ts')).href)
 
 const BEFORE = process.argv.includes('--before')
 
@@ -47,7 +50,7 @@ const db = (g) => (g <= 1e-9 ? -Infinity : 20 * Math.log10(g))
 const f1 = (n) => (Number.isFinite(n) ? n.toFixed(1) : '  -')
 const pad = (s, n) => String(s).padEnd(n)
 const pd = (s, n) => String(s).padStart(n)
-const level = (f) => raw[f.replace('/audio/', '')]
+const level = (f) => LEVELS[f]
 
 /* ═══════════════════ 1. one-shots, per family ═══════════════════ */
 
@@ -62,7 +65,7 @@ for (const family of FAMILIES) {
     for (const a of manifest.SFX[cue]) {
       const m = level(a.file)
       const g = db(M.fileGain(a.file))
-      files.push({ cue, file: a.file, l100: m.lufs100 + g, tp: m.truePeakDb + g, g })
+      files.push({ cue, file: a.file, l100: m.l100 + g, tp: m.tp + g, g })
     }
   }
   // spread *within a cue* is the audible defect: the same gesture, two loudnesses
@@ -117,8 +120,8 @@ for (const id of Object.keys(manifest.AMBIENCE)) {
   const a = manifest.AMBIENCE[id]
   const m = level(a.file)
   const g = db(M.fileGain(a.file))
-  const li = m.lufsI + g
-  const ls = m.lufsSmax + g
+  const li = m.li + g
+  const ls = m.ls + g
   bedI.push(li); bedS.push(ls)
   console.log(pad(id, 10), pd(f1(g), 7), pd(f1(li), 8), pd(f1(ls), 8),
     pd(f1(li + ambBusDb), 8), pd(f1(li + ambBusDb - (paper + sfxBusDb)), 9))
@@ -158,7 +161,30 @@ if (!BEFORE) {
   }
 }
 
-/* ═══════════════════ 4. limiter sanity ═══════════════════ */
+/* ═══════════════════ 4. the friction voice's velocity map ═══════════════════ */
+
+if (!BEFORE) {
+  console.log('\nThe friction voice against velocity (the gain term only — the grain\n' +
+    'machinery adds ~8 dB more of its own; see .mix-render.mjs for the total)\n')
+  console.log(pad('px/ms', 8), pd('n', 7), pd('GAIN dB', 9), pd('STEP', 7), pd('TONE Hz', 9),
+    pd('GRAINS/s', 9), pd('NOISE', 7))
+  console.log('-'.repeat(60))
+  let prev = null
+  for (const v of [0.02, 0.05, 0.1, 0.2, 0.3, 0.5, 0.8, 1.2, 1.8, 2.5, 4]) {
+    const n = granular.normVelocity(v)
+    const m = granular.frictionParams(n, 0.5)
+    const g = db(m.gain)
+    console.log(pad(v.toFixed(2), 8), pd(n.toFixed(3), 7), pd(f1(g), 9),
+      pd(prev === null ? '-' : f1(g - prev), 7), pd(m.toneHz.toFixed(0), 9),
+      pd(m.grainRate.toFixed(0), 9), pd(m.noiseAmt.toFixed(2), 7))
+    prev = g
+  }
+  const lo = db(granular.frictionParams(granular.normVelocity(0.02), 0.5).gain)
+  const hi = db(granular.frictionParams(granular.normVelocity(4), 0.5).gain)
+  console.log(`\n  monotonic, ${f1(hi - lo)} dB of explicit gain end to end, no step over 0.6 dB`)
+}
+
+/* ═══════════════════ 5. limiter sanity ═══════════════════ */
 
 /** WebAudio's DynamicsCompressor curve: soft knee, then the ratio. */
 function gainReductionDb(inputDb, { thresholdDb: t, kneeDb: k, ratio }) {

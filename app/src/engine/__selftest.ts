@@ -8,6 +8,7 @@ import { convexHull, offsetPolygon, polyArea, splitPolygon } from './geom'
 import { bendExponent, bendVertex, bowAmount, buildStrips } from './bend'
 import { invalidateCssCache, parseColor, readLighting } from './shade'
 import { defaultLighting } from './types'
+import { SPECIES } from '../content/species/index'
 
 // Minimal Node surface. The engine itself never touches these; only this script does.
 declare const process: {
@@ -263,7 +264,7 @@ function testSheet(): void {
   near('flat sheet area', s.totalArea(), SHEET_AREA, 1e-6)
   ok('flat sheet is one facet', s.facets.length === 1)
 
-  const out = { nodes: [] as number[], moved: [] as number[], extent: 0, ax: 0, ay: 0, bx: 0, by: 0 }
+  const out = { nodes: [] as number[], moved: [] as number[], extent: 0, ax: 0, ay: 0, bx: 0, by: 0, group: 0 }
   const opts = {
     angle: Math.PI, kind: 'valley' as const, scope: -1,
     foldUp: true, invertLayers: false, stackBias: 0,
@@ -849,6 +850,9 @@ function testPerf(): void {
 
   // A deliberately heavy 60+ facet model: creases in general position, so every
   // new line cuts most of the existing facets. This is the contract's target case.
+  // Flat folds (180), because that is what stacks paper: a layer left standing
+  // off the crease plane is not on the next crease at all, and the engine — now
+  // that it knows the difference — correctly declines to cut it.
   const many: FoldStep[] = []
   for (let i = 0; i < 13; i++) {
     const th = (i * 37 + 11) * (Math.PI / 180)
@@ -858,7 +862,7 @@ function testPerf(): void {
     const dy = Math.sin(th) * 900
     many.push(step('m' + i, i % 2 ? 'valley' : 'mountain',
       [crease(cx - dx, cy - dy, cx + dx, cy + dy,
-        i % 2 ? 1 : -1, i % 2 ? 'valley' : 'mountain', 170)]))
+        i % 2 ? 1 : -1, i % 2 ? 'valley' : 'mountain', 180)]))
   }
   const e3 = new Fold3D()
   e3.reset({ steps: many }, MATERIAL)
@@ -886,6 +890,171 @@ function testPerf(): void {
   const grew = (after - before) / 1024 / 1024
   process.stdout.write(`    heap delta over 5000 renders: ${grew.toFixed(2)} MB\n`)
   ok('render loop does not leak', grew < 24, grew.toFixed(2) + ' MB')
+}
+
+
+/* ── the roster: every shipped recipe, folded to the end ────────────────── */
+
+/**
+ * Recipes whose fold still parts the paper somewhere, with the worst gap the
+ * engine is currently allowed to leave, in model units on a 1000-unit sheet.
+ *
+ * These are crossing-crease collapses the fold tree cannot yet compose in the
+ * right order (each facet's chain is the creases that moved it, in the order
+ * they were laid, where a folded sheet obeys the order they are CROSSED). The
+ * budget exists so the number can only go down: a new tear, or an old one
+ * getting worse, fails here. Everything not listed must stay in one piece.
+ */
+const TEAR_BUDGET: Record<string, number> = {
+  bee: 320, cat: 600, turtle: 90, penguin: 190, octopus: 520, fox: 12,
+  tanuki: 60, treefrog: 500, dino: 160, bat: 660, owl: 490, musasabi: 60,
+}
+
+/**
+ * THE regression this engine was missing.
+ *
+ * The self-test's own fixtures exercise every FoldKind and 1,800-odd
+ * assertions' worth of arithmetic, and they all passed while thirty-three of
+ * the thirty-four shipped birds and beasts were coming apart in the player's
+ * hands — because area conservation cannot see a tear. Every square unit of a
+ * shredded crane is still there. So: fold all of them, all the way, and check
+ * the thing that actually matters, which is that paper joined on the flat sheet
+ * is still joined in space.
+ */
+function testRoster(): void {
+  section('roster — all ' + SPECIES.length + ' shipped recipes fold without tearing')
+  ok('the roster is the full 34', SPECIES.length === 34, String(SPECIES.length))
+
+  let intact = 0
+  for (const sp of SPECIES) {
+    const e = new Fold3D()
+    e.reset(sp.recipe, sp.material)
+    e.fit(390, 760)
+    const steps = sp.recipe.steps
+    ok(sp.id + ': has steps', steps.length > 0, String(steps.length))
+
+    let worst = 0
+    let worstStep = -1
+    let badArea = 0
+    let badFacets = 0
+    let degenerate = 0
+    let nonFinite = 0
+
+    for (let i = 0; i < steps.length; i++) {
+      // Halfway through the gesture as well as at rest: a fold that only tears
+      // in flight is still a fold the player watches tear.
+      e.setProgress(0.5)
+      const mid = e.render()
+      for (let k = 0; k < mid.facets.length; k++) {
+        const pts = mid.facets[k].points
+        for (let q = 0; q < pts.length; q++) {
+          if (!isNum(pts[q][0]) || !isNum(pts[q][1])) nonFinite++
+        }
+      }
+      e.setProgress(1)
+      e.commitStep()
+
+      const it = e.integrity()
+      if (it.maxGap > worst) {
+        worst = it.maxGap
+        worstStep = i
+      }
+      if (Math.abs(it.area - SHEET_AREA) > SHEET_AREA * 1e-6) badArea++
+      if (it.degenerate > 0) degenerate += it.degenerate
+      if (it.nonFinite > 0) nonFinite += it.nonFinite
+      const n = e.stats().facets
+      if (n < 1 || n > 640) badFacets++
+    }
+
+    const budget = TEAR_BUDGET[sp.id] ?? 0
+    const label = sp.id + ' (' + steps.length + ' steps)'
+    ok(label + ': area conserved at every step', badArea === 0, badArea + ' steps off')
+    ok(label + ': no NaN anywhere', nonFinite === 0, String(nonFinite))
+    ok(label + ': facet count stays sane', badFacets === 0, String(e.stats().facets))
+    ok(label + ': no degenerate facets', degenerate === 0, String(degenerate))
+    ok(
+      label + ': stays one sheet of paper',
+      worst <= budget,
+      'gap ' + worst.toFixed(1) + ' > budget ' + budget + ' at step ' + (worstStep + 1) +
+        (worstStep >= 0 ? ' (' + steps[worstStep].id + ', ' + steps[worstStep].kind + ')' : ''),
+    )
+    if (budget === 0 && worst === 0) intact++
+
+    const done = e.integrity()
+    ok(label + ': finishes complete', e.isComplete())
+    ok(
+      label + ': finished model is connected',
+      done.pieces <= (budget === 0 ? 1 : 12),
+      done.pieces + ' pieces',
+    )
+    checkFrame(sp.id, e.render())
+  }
+
+  process.stdout.write(
+    '    ' + intact + '/' + SPECIES.length + ' recipes fold with no tear at all; ' +
+    Object.keys(TEAR_BUDGET).length + ' held to a shrinking budget\n',
+  )
+}
+
+/**
+ * The crane, step by step, because this is the model a player reported as
+ * "crazy at the final" and the one whose numbers are quoted in the fix.
+ */
+function testCrane(): void {
+  section('crane — the reported failure, step by step')
+  const crane = SPECIES.find((s) => s.id === 'crane')
+  ok('the crane is in the roster', crane !== undefined)
+  if (!crane) return
+  const e = new Fold3D()
+  e.reset(crane.recipe, crane.material)
+  e.fit(390, 760)
+  const steps = crane.recipe.steps
+  for (let i = 0; i < steps.length; i++) {
+    e.setProgress(1)
+    e.commitStep()
+    const it = e.integrity()
+    const tag = 'crane step ' + (i + 1) + ' (' + steps[i].kind + ')'
+    ok(tag + ': nothing severed', it.severed === 0, it.severed + ' joins, gap ' + it.maxGap.toFixed(1))
+    ok(tag + ': one piece', it.pieces === 1, it.pieces + ' pieces')
+    near(tag + ': area', it.area, SHEET_AREA, SHEET_AREA * 1e-9)
+    ok(tag + ': joins found', it.joins > 0, String(it.joins))
+  }
+  ok('crane completes', e.isComplete())
+}
+
+/** The invariant machinery itself: it has to be able to SEE a tear. */
+function testIntegrityDetects(): void {
+  section('integrity — a torn sheet is detected, an intact one is not')
+  const e = new Fold3D()
+  e.reset({
+    steps: [
+      step('a', 'valley', [crease(500, 0, 500, 1000, 1, 'valley', 180)]),
+      step('b', 'valley', [crease(0, 500, 1000, 500, 1, 'valley', 180)]),
+    ],
+  }, MATERIAL)
+  e.setProgress(1)
+  e.commitStep()
+  e.setProgress(1)
+  e.commitStep()
+  const clean = e.integrity()
+  ok('a plain two-fold model is intact', clean.severed === 0, String(clean.severed))
+  ok('and is one piece', clean.pieces === 1, String(clean.pieces))
+  ok('and found real joins to check', clean.joins >= 2, String(clean.joins))
+  near('and conserves area', clean.area, SHEET_AREA, 1e-6)
+
+  // Now tear it by hand: swing one node about a line that is not its hinge.
+  const s = e.getSheet()
+  let victim = -1
+  for (let i = 1; i < s.nodes.length; i++) if (s.nodes[i].angle !== 0) victim = i
+  ok('found a folded hinge to sabotage', victim > 0, String(victim))
+  if (victim > 0) {
+    s.nodes[victim].ax += 137
+    s.nodes[victim].ay -= 91
+    s.markDirty()
+    const torn = e.integrity()
+    ok('moving a hinge off its crease is caught', torn.severed > 0, String(torn.severed))
+    ok('and the gap is reported', torn.maxGap > 1, torn.maxGap.toFixed(1))
+  }
 }
 
 /**
@@ -961,6 +1130,9 @@ testGeom()
 testSheet()
 testEngine()
 testKindEffects()
+testIntegrityDetects()
+testCrane()
+testRoster()
 testPerf()
 testCssVars()
 

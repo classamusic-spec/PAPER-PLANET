@@ -21,7 +21,13 @@ import { usePaperTheme } from './usePaperTheme'
 import { CARD_SIZE, type CardShape, type CardSpec, type CardTheme, type ShareSubject } from './types'
 import './share.css'
 
-const EXPORT_RATIO = 2
+/**
+ * The card is already composed on a 2× grid (see `CARD_SIZE`), so the file goes
+ * out at 1080×1080 / 1080×1920 — the sizes a feed and a story actually want,
+ * and a few megabytes rather than a dozen, which matters when the next thing
+ * that happens to it is `navigator.share`.
+ */
+const EXPORT_RATIO = 1
 
 export interface ShareSheetProps {
   open: boolean
@@ -197,7 +203,7 @@ export function ShareSheet({ open, onClose, subject, now: openedAt }: ShareSheet
           )}
           <div className="pps-actions__row">
             <Button variant={caps.share ? 'ghost' : 'beni'} size="md" icon="camera" onClick={() => void onSave()}>
-              Save the picture
+              Save
             </Button>
             {caps.copy && (
               <Button variant="ghost" size="md" onClick={() => void onCopy()}>

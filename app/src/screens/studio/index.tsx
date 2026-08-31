@@ -11,6 +11,7 @@ import { Button, IconButton, Icon } from '../../ui'
 import FoldCanvas, { type FoldCanvasHandle } from './FoldCanvas'
 import FoldCoach from './FoldCoach'
 import { useFoldCoach, useLiveAnchors, type CoachTopic } from './coach'
+import { EMPTY_TALLY, meanQualityOf, recordStep, unfoldStep } from './session'
 import Reveal from './Reveal'
 import { TEST_RECIPE } from './testRecipe'
 import './studio.css'
@@ -65,22 +66,18 @@ export default function StudioScreen() {
   const [progress, setProgress] = useState(0)
   const [phase, setPhase] = useState<Phase>('folding')
   const handleRef = useRef<FoldCanvasHandle | null>(null)
-  const qualities = useRef<number[]>([])
   const startedAt = useRef(Date.now())
-  const creases = useRef(0)
+  /* One accuracy sample per committed step. Unfolding takes the last one back. */
+  const tally = useRef(EMPTY_TALLY)
 
   const step = recipe.steps[Math.min(stepIndex, total - 1)]
   const complete = stepIndex >= total
 
-  const onStepComplete = useCallback(
-    (quality: number) => {
-      qualities.current.push(quality)
-      creases.current += 1
-      setProgress(0)
-      setStepIndex((i) => i + 1)
-    },
-    [],
-  )
+  const onStepComplete = useCallback((quality: number) => {
+    tally.current = recordStep(tally.current, quality)
+    setProgress(0)
+    setStepIndex((i) => i + 1)
+  }, [])
 
   /**
    * Unfold — real paper comes apart again.
@@ -96,8 +93,7 @@ export default function StudioScreen() {
   const canUnfold = stepIndex > 0 && !complete
   const unfold = useCallback(() => {
     if (!canUnfold) return
-    qualities.current.pop()
-    creases.current = Math.max(0, creases.current - 1)
+    tally.current = unfoldStep(tally.current)
     setStepIndex(stepIndex - 1)
     setProgress(0)
     audio.play('sheet.slide', { volume: 0.7 })
@@ -156,10 +152,8 @@ export default function StudioScreen() {
     return () => clearTimeout(t)
   }, [complete, phase])
 
-  const meanQuality = useMemo(() => {
-    const q = qualities.current
-    return q.length ? q.reduce((a, b) => a + b, 0) / q.length : 0.8
-  }, [stepIndex])
+  /* Re-read the tally whenever the step moves — forward or back. */
+  const meanQuality = useMemo(() => meanQualityOf(tally.current), [stepIndex])
 
   const result: StudioResult = useMemo(
     () => ({
@@ -167,7 +161,7 @@ export default function StudioScreen() {
       washiId: washi?.id ?? DEFAULT_WASHI,
       golden,
       quality: meanQuality,
-      creases: creases.current,
+      creases: tally.current.creases,
       seconds: Math.round((Date.now() - startedAt.current) / 1000),
     }),
     [species, washi, golden, meanQuality],
@@ -175,8 +169,7 @@ export default function StudioScreen() {
 
   /* Zen never ends and never pays: start a fresh sheet instead. */
   const restart = useCallback(() => {
-    qualities.current = []
-    creases.current = 0
+    tally.current = EMPTY_TALLY
     startedAt.current = Date.now()
     setStepIndex(0)
     setProgress(0)
@@ -276,6 +269,11 @@ export default function StudioScreen() {
           <span style={{ transform: `scaleX(${complete ? 1 : progress})` }} />
         </div>
 
+        <p className="pp-studio__count">
+          {species ? `${species.name} · ` : ''}
+          {complete ? 'Finished' : `Step ${stepIndex + 1} of ${total}`}
+        </p>
+
         <div className="pp-studio__tools">
           {/* Paper unfolds. So does this. */}
           <Button
@@ -290,11 +288,6 @@ export default function StudioScreen() {
           >
             Unfold
           </Button>
-
-          <p className="pp-studio__count">
-            {species ? `${species.name} · ` : ''}
-            {complete ? 'Finished' : `Step ${stepIndex + 1} of ${total}`}
-          </p>
 
           {/* Asking to be shown is how anyone learns a fold. */}
           <Button

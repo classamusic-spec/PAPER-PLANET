@@ -110,18 +110,26 @@ export interface FrictionParams {
 /**
  * `n` is normalised velocity (see normVelocity), `p` is pressure 0..1.
  *
- * The loudness law is deliberately gentler than it looks it should be. Real
- * friction spans an enormous range with speed, and mapping that honestly put
- * about 22 dB between a slow deliberate rub and a fast one — which meant the
- * slow, careful rubbing this app is *for* sat 22 dB under the brisk scrubbing
- * it is not for. 0.20 + 0.80n plus the density the grain rate adds on its own
- * comes to about 15 dB end to end, which still reads as "faster is louder"
- * without making the quiet half of the gesture inaudible.
+ * The loudness term is almost flat, and that is the whole point.
+ *
+ * Rendering this voice offline (`.mix-render.mjs`) and measuring it showed the
+ * grain machinery already produces about 11 dB of rise on its own between a
+ * barely-moving finger and a fast scrub: seven times as many grains a second,
+ * a bandpass opening from 620 Hz to 4 kHz, and the fine-fibre noise layer
+ * arriving on top. The old explicit law, 0.12 + 0.88n, then added another
+ * 12.5 dB to that — so the slow, careful rubbing this app is *for* sat 23 dB
+ * below the brisk scrubbing it is not for, and a gentle rub came out quieter
+ * than the ambience bed it was supposed to be in front of.
+ *
+ * 0.72 + 0.28v adds about 3 dB on top of that, for ~10 dB end to end. That
+ * reads as "faster is louder" without the quiet half of the gesture
+ * disappearing — and the timbre, which is what actually says *how fast*, is
+ * untouched.
  */
 export function frictionParams(n: number, p: number): FrictionParams {
   const v = Math.min(1, n)
   return {
-    gain: FRICTION_TRIM * (0.20 + 0.80 * v) * (0.55 + 0.45 * p),
+    gain: FRICTION_TRIM * (0.72 + 0.28 * v) * (0.55 + 0.45 * p),
     // More pressure means a wider contact patch, which means more low end.
     toneHz: Math.min(12000, 620 * Math.pow(6.8, v) * (1.15 - 0.3 * p)),
     noiseHz: Math.min(14000, 3200 * Math.pow(2.6, v)),

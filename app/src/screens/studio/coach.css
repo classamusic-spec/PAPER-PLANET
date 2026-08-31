@@ -60,9 +60,10 @@
   fill: rgba(var(--shadow-tint), 0.34);
 }
 
+/* A ghost, so what it points at still shows through. */
 .pp-coach__pad {
   fill: var(--paper-0);
-  fill-opacity: 0.94;
+  fill-opacity: 0.82;
   stroke: var(--ink);
   stroke-width: 2.4;
   stroke-opacity: 0.72;
@@ -75,14 +76,21 @@
 
 /* ══ the note ═════════════════════════════════════════════════════════════ */
 
+/* A slip of paper laid on the work. It swaps ends so it never covers the very
+   handle it is pointing at. */
 .pp-coach__note-wrap {
   position: absolute;
   left: 50%;
-  bottom: 1%;
-  width: min(94%, 380px);
+  width: min(94%, 372px);
   transform: translateX(-50%);
   animation: pp-coach-note var(--t-slow) var(--ease-settle) both;
   animation-delay: 60ms;
+}
+.pp-coach__note-wrap[data-at='bottom'] {
+  bottom: -3%;
+}
+.pp-coach__note-wrap[data-at='top'] {
+  top: -3%;
 }
 
 .pp-coach__note .pp-paper__body {
@@ -183,6 +191,24 @@
   }
 }
 
+/* On a desk the note is a real card, not a strip. */
+@media (min-width: 768px) {
+  .pp-coach__note-wrap {
+    width: min(74%, 480px);
+  }
+  .pp-coach__note .pp-paper__body {
+    gap: var(--s-4);
+    padding: var(--s-4) var(--s-5);
+  }
+  .pp-coach__mark {
+    width: 40px;
+    height: 40px;
+  }
+  .pp-studio__tools {
+    width: min(100%, 560px);
+  }
+}
+
 /* Landscape phone has no room for a card over the paper. */
 @media (orientation: landscape) and (max-height: 520px) {
   .pp-coach__note-wrap {
@@ -207,36 +233,17 @@
 
 /* ══ unfold & show me ═════════════════════════════════════════════════════ */
 
-/* Unfold · where you are · Show me. Both hands can reach both ends. */
+/* Unfold on the left, Show me on the right: one for each thumb, both in reach. */
 .pp-studio__tools {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  display: flex;
   align-items: center;
-  gap: var(--s-2);
-  width: min(100%, 460px);
+  justify-content: space-between;
+  gap: var(--s-4);
+  width: min(100%, 420px);
 }
 
 .pp-studio__tool {
   white-space: nowrap;
-}
-
-.pp-studio__tools > .pp-studio__tool:first-child {
-  justify-self: start;
-}
-.pp-studio__tools > .pp-studio__tool:last-child {
-  justify-self: end;
-}
-
-.pp-studio__tools > .pp-studio__count {
-  text-align: center;
-  padding: 0 var(--s-1);
-}
-
-/* Narrow phones: the labels go, the paper cards and their 44pt targets stay. */
-@media (max-width: 359px) {
-  .pp-studio__tool .pp-btn__label {
-    display: none;
-  }
 }
 
 /* An offer, never an alarm: the hint warms only while the teacher is out. */

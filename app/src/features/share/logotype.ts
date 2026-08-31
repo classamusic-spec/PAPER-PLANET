@@ -116,18 +116,19 @@ function paintPlanetGlyph(ctx: CanvasRenderingContext2D, x: number, y: number, s
   ctx.fillStyle = ink
   ctx.fill(world, 'nonzero')
 
-  /* the lit half of the mountain fold, and the ridge down its centre */
-  const mask = new Path2D()
-  mask.arc(50, 50, 49, 0, Math.PI * 2, true)
-  mask.addPath(new Path2D(A_CUT))
-  ctx.save()
-  ctx.clip(mask, 'nonzero')
-  ctx.globalAlpha = 0.15
-  ctx.fillStyle = lit
-  ctx.fill(new Path2D('M50 1a49 49 0 0 0 0 98Z'))
-  ctx.globalAlpha = 0.55
-  ctx.fillRect(49, 1, 1.9, 98)
-  ctx.restore()
+  /* The lit half of the mountain fold and the ridge down its centre. Both are
+     sub-pixel under about 40px, where they stop reading as a fold and start
+     reading as dirt in the letter — so under 40px the world is simply solid. */
+  if (size >= 40) {
+    ctx.save()
+    ctx.clip(world, 'nonzero')
+    ctx.globalAlpha = 0.15
+    ctx.fillStyle = lit
+    ctx.fill(new Path2D('M50 1a49 49 0 0 0 0 98Z'))
+    ctx.globalAlpha = 0.55
+    ctx.fillRect(49, 1, 1.9, 98)
+    ctx.restore()
+  }
 
   ctx.restore()
 }
@@ -147,7 +148,7 @@ export function measureWordmark(ctx: CanvasRenderingContext2D, size: number): Wo
   const paper = measure(ctx, 'PAPER', f)
   const pl = measure(ctx, 'PL', f)
   const net = measure(ctx, 'NET', f)
-  const disc = size * 0.84 + size * 0.024
+  const disc = size * 0.84 + size * 0.07
   return { width: paper + size * 0.26 + pl + disc + net, ascent: size * 0.78 }
 }
 
@@ -189,11 +190,11 @@ export function paintWordmark(
 
   pen += measure(ctx, 'PAPER', f) + size * 0.26
   drawText(ctx, 'PL', pen, baseline, f, ink)
-  pen += measure(ctx, 'PL', f) + size * 0.012
+  pen += measure(ctx, 'PL', f) + size * 0.035
 
   const disc = size * 0.84
-  paintPlanetGlyph(ctx, pen, baseline + size * 0.075 - disc, disc, ink, p.paper1)
-  pen += disc + size * 0.012
+  paintPlanetGlyph(ctx, pen, baseline + size * 0.06 - disc, disc, ink, p.paper1)
+  pen += disc + size * 0.035
 
   drawText(ctx, 'NET', pen, baseline, f, ink)
   return pen + measure(ctx, 'NET', f) - x

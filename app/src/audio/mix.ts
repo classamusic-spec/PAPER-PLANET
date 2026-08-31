@@ -23,7 +23,9 @@ import type { TextureId } from './manifest'
    Every number below is measured, not guessed: `levels.ts` says where each
    file actually sits and this file says where it should sit. Nothing is
    re-mastered — the shipped audio is untouched and the mix is data.
-   `node tools/mix-report.mjs` prints the resulting table.
+
+     cd app && node --import tsx ../tools/mix-report.mjs [--before]
+     cd app && node .mix-render.mjs [--old]     the synthesised voices, rendered
    ═══════════════════════════════════════════════════════════════════════════ */
 
 export const dbToGain = (db: number): number => Math.pow(10, db / 20)
@@ -117,21 +119,39 @@ export const BED_TARGET_LUFS = PAPER_ANCHOR_LUFS
 export const TEXTURE_TARGET_LUFS = -20
 
 /**
- * Output trim on the whole friction voice, chosen so that a deliberate rub
- * (v ≈ 0.3) lands about 4 LU under a crease and a brisk one lands just over
- * it — measured, not guessed; `tools/mix-report.mjs` renders the voice offline
- * and prints where it actually sits.
+ * …but `burnish` carries 27 dB of crest — it is a sparse crackle, not a hiss —
+ * so matching it on average level alone throws its peaks 8 dB up and the whole
+ * friction voice spikes whenever the player presses hard. Grains are windowed
+ * and then band-passed and scaled by the velocity map, so a raw grain may sit
+ * above 0 dBFS quite safely; +2 is where the pressed voice stops poking the
+ * limiter.
  */
-export const FRICTION_TRIM = 0.30
+export const TEXTURE_CEILING_DBTP = 2
+
+/**
+ * Output trim on the whole friction voice.
+ *
+ * Set by rendering the voice through the real graph and measuring it, not by
+ * ear-guessing: a steady rub now lands 2 LU under a crease's loudest 100 ms —
+ * continuously, which makes it the most present thing in the mix while it is
+ * happening — and even the gentlest touch sits 9 LU *over* the ambience bed.
+ * Before this pass a gentle rub measured 4 LU *under* the bed: the star of the
+ * app was being covered by the room.
+ */
+export const FRICTION_TRIM = 1.13
 
 /* ── the music ──────────────────────────────────────────────────────────── */
 
 /**
- * Output trim on the synthesised music, so the drone — the continuous part,
- * and therefore the part that sets the level — sits at the target. Measured
- * the same way as the friction voice.
+ * Output trim on the synthesised music.
+ *
+ * The drone is the continuous part and therefore the part that sets the level;
+ * measured through the real graph it lands 25 LU under the paper, which is
+ * where "it should be possible to not notice it" actually lives. Pitched
+ * material is noticed at levels a room tone is not, so music sits under the
+ * bed rather than beside it.
  */
-export const MUSIC_TRIM = 0.62
+export const MUSIC_TRIM = 0.72
 
 /* ── buses ──────────────────────────────────────────────────────────────── */
 
@@ -247,7 +267,7 @@ export function bedTrimDb(file: string): number {
 export function textureTrimDb(id: TextureId): number {
   const m = LEVELS[TEXTURES[id].file]
   if (!m) return 0
-  return clampTrim(TEXTURE_TARGET_LUFS - m.lu)
+  return Math.min(clampTrim(TEXTURE_TARGET_LUFS - m.lu), TEXTURE_CEILING_DBTP - m.tp)
 }
 
 /**

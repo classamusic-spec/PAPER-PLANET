@@ -127,8 +127,15 @@ export const ORBIT_LESSON: CoachLesson = {
   move: 'sweep',
   fingers: 2,
   place: 'Two fingers turn the paper.',
-  act: 'Look at it from the side — it is really there.',
+  act: 'Look at it from the side.',
 }
+
+/**
+ * The orbit belongs to no step, so it is never traced onto the current crease.
+ * It plays across the middle of the sheet, the way the gesture actually works:
+ * anywhere, in any direction.
+ */
+export const ORBIT_ANCHORS: CoachAnchors = { from: [120, 500], to: [880, 500] }
 
 /**
  * Guided assist reduces every gesture to a tap (BRAND §11). It is a setting,
@@ -201,48 +208,61 @@ export interface CoachApi {
  * - The **orbit** is taught once, on its own, a beat after the second fold lands.
  * - Touching the paper closes it immediately, every time.
  */
+interface OpenLesson {
+  topic: CoachTopic
+  /** Which visit to a step this belongs to. A lesson never outlives its visit. */
+  visit: number
+}
+
 export function useFoldCoach(input: CoachInput): CoachApi {
-  const { stepIndex, total, gesture, complete, teachFold, teachOrbit, assist } = input
+  const { stepIndex, total, gesture, complete, teachFold, teachOrbit, assist, onTaught } = input
 
-  const [topic, setTopic] = useState<CoachTopic | null>(null)
+  const [open, setOpen] = useState<OpenLesson | null>(null)
 
-  /* Live mirrors so the policy timer never has to re-subscribe. */
-  const topicRef = useRef<CoachTopic | null>(null)
-  const activeAt = useRef(Date.now())
-  const openedFor = useRef(-1)
-  const teachFoldRef = useRef(teachFold)
-  const teachOrbitRef = useRef(teachOrbit)
-  const taught = useRef(input.onTaught)
-  teachFoldRef.current = teachFold
-  teachOrbitRef.current = teachOrbit
-  taught.current = input.onTaught
+  /**
+   * A lesson is scoped to one visit to one step, and the visit counter only
+   * ever moves in an effect. That is what closes the teacher when the step
+   * changes — no reset `setState`, and no chance of a stale lesson reappearing
+   * when an Unfold brings the same step index back.
+   */
+  const visit = useRef(0)
+  const openRef = useRef<OpenLesson | null>(null)
+  /* Stamped by the step effect below, so render itself stays pure. */
+  const activeAt = useRef(0)
+  const offeredOn = useRef(-1)
+
+  const topic = open && open.visit === visit.current ? open.topic : null
 
   const close = useCallback(() => {
     activeAt.current = Date.now()
-    const was = topicRef.current
+    const was = openRef.current
     if (!was) return
-    topicRef.current = null
-    setTopic(null)
+    openRef.current = null
+    setOpen(null)
     /* The orbit has no step to complete, so seeing it *is* learning it. */
-    if (was === 'orbit') taught.current('orbit')
-  }, [])
+    if (was.topic === 'orbit') onTaught('orbit')
+  }, [onTaught])
 
   const touch = useCallback(() => {
     activeAt.current = Date.now()
     close()
   }, [close])
 
-  /* A new step is a fresh slate — including after an Unfold, which is exactly
-     when a second look at the gesture is welcome. */
+  /* A new step — or the same step again, after an Unfold — is a fresh slate. */
   useEffect(() => {
-    openedFor.current = -1
-    close()
-  }, [stepIndex, close])
+    const was = openRef.current
+    openRef.current = null
+    visit.current += 1
+    offeredOn.current = -1
+    activeAt.current = Date.now()
+    /* Folding on past an open orbit lesson counts as having learned it. */
+    if (was?.topic === 'orbit') onTaught('orbit')
+  }, [stepIndex, onTaught])
 
   /* Two folds in and the gesture is theirs. */
   useEffect(() => {
-    if (teachFold && stepIndex >= 2) taught.current('fold')
-  }, [teachFold, stepIndex])
+    if (teachFold && stepIndex >= 2) onTaught('fold')
+  }, [teachFold, stepIndex, onTaught])
 
   /* The orbit lesson says its piece and leaves on its own. */
   useEffect(() => {
@@ -253,28 +273,32 @@ export function useFoldCoach(input: CoachInput): CoachApi {
 
   useEffect(() => {
     if (complete || !gesture) return
+    const show = (next: CoachTopic): void => {
+      const entry: OpenLesson = { topic: next, visit: visit.current }
+      openRef.current = entry
+      setOpen(entry)
+    }
     const id = window.setInterval(() => {
-      if (topicRef.current) return
+      if (openRef.current) return
       const idleFor = Date.now() - activeAt.current
 
       /* Wait until they have folded, so the orbit is a discovery and not a
          second instruction competing with the first. */
       const orbitStep = Math.max(1, Math.min(2, total - 1))
-      if (teachOrbitRef.current && stepIndex >= orbitStep && idleFor >= COACH_TIMING.orbitDelay) {
-        topicRef.current = 'orbit'
-        setTopic('orbit')
+      if (teachOrbit && stepIndex >= orbitStep && idleFor >= COACH_TIMING.orbitDelay) {
+        show('orbit')
         return
       }
 
-      if (openedFor.current === stepIndex) return
-      const firstEver = teachFoldRef.current && stepIndex <= 1
+      /* One offer per visit to a step. An offer, not a nag. */
+      if (offeredOn.current === visit.current) return
+      const firstEver = teachFold && stepIndex <= 1
       if (idleFor < (firstEver ? COACH_TIMING.open : COACH_TIMING.idle)) return
-      openedFor.current = stepIndex
-      topicRef.current = 'fold'
-      setTopic('fold')
+      offeredOn.current = visit.current
+      show('fold')
     }, COACH_TIMING.pulse)
     return () => window.clearInterval(id)
-  }, [stepIndex, total, gesture, complete])
+  }, [stepIndex, total, gesture, complete, teachFold, teachOrbit])
 
   const lesson = topic === 'orbit' ? ORBIT_LESSON : topic === 'fold' ? lessonFor(gesture, assist) : null
   return { lesson, touch }
@@ -302,6 +326,12 @@ export interface CoachGeometry {
   unit: Vec2
   /** Radius of a ghost fingertip at this size. */
   tip: number
+  /**
+   * True when a and b are the step's real projected anchors. FoldCanvas already
+   * draws the guide, the arrow and the handle along exactly that line, so the
+   * coach adds only the hand — two dashed lines over one crease is clutter.
+   */
+  traced: boolean
 }
 
 /** Below this the anchors have collapsed on screen and mean nothing. */
@@ -339,7 +369,8 @@ export function demoGeometry(
   let a: Vec2
   let b: Vec2
   const liveSpan = live ? Math.hypot(live.to[0] - live.from[0], live.to[1] - live.from[1]) : 0
-  if (live && liveSpan >= MIN_SPAN) {
+  const traced = !!live && liveSpan >= MIN_SPAN
+  if (live && traced) {
     a = [live.from[0], live.from[1]]
     b = [live.to[0], live.to[1]]
   } else {
@@ -377,7 +408,7 @@ export function demoGeometry(
   const dy = b[1] - a[1]
   const span = Math.hypot(dx, dy)
   const unit: Vec2 = span > 1e-3 ? [dx / span, dy / span] : [1, 0]
-  return { a, b, mid: lerp2(a, b, 0.5), span, unit, tip }
+  return { a, b, mid: lerp2(a, b, 0.5), span, unit, tip, traced }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -476,7 +507,8 @@ export function ghostsAt(move: CoachMove, fingers: 1 | 2, g: CoachGeometry, phas
       const press = p < 0.12 ? p / 0.12 : 1
       const centre = lerp2(g.a, g.b, k)
       if (fingers === 1) return [{ pos: centre, press, angle, alpha, pulse: 0 }]
-      const off = Math.max(14, g.span * 0.15)
+      /* Two fingers, side by side and clearly two — never one smudge. */
+      const off = Math.max(g.tip * 1.45, g.span * 0.15)
       return [
         { pos: [centre[0] - perp[0] * off, centre[1] - perp[1] * off], press, angle, alpha, pulse: 0 },
         { pos: [centre[0] + perp[0] * off, centre[1] + perp[1] * off], press, angle, alpha, pulse: 0 },
@@ -485,8 +517,27 @@ export function ghostsAt(move: CoachMove, fingers: 1 | 2, g: CoachGeometry, phas
   }
 }
 
-/** Where the hand rests once it has finished demonstrating. */
-export const REST_PHASE = 0.12
+/**
+ * Where the hand rests once it has finished demonstrating — and the single pose
+ * a player with reduced motion is shown. It sits a third of the way along the
+ * route: clearly on the path, and clear of the handle it is pointing at.
+ */
+export function restPhase(move: CoachMove): number {
+  switch (move) {
+    case 'stroke':
+      return 0.1
+    case 'sweep':
+      return 0.36
+    case 'press':
+      return 0.5
+    case 'tap':
+      return 0.26
+    case 'tap-then':
+      return 0.62
+    default:
+      return 0.42
+  }
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE LIVE ANCHORS
@@ -506,10 +557,7 @@ export function useLiveAnchors(active: boolean, stepIndex: number): CoachAnchors
   const [anchors, setAnchors] = useState<CoachAnchors | null>(null)
 
   useEffect(() => {
-    if (!active) {
-      setAnchors(null)
-      return
-    }
+    if (!active) return
     const read = (): void => {
       const frame = (window as unknown as { __ppFrame?: PaperFrame }).__ppFrame
       const hint = frame?.hint ?? null
@@ -532,5 +580,6 @@ export function useLiveAnchors(active: boolean, stepIndex: number): CoachAnchors
     return () => window.clearInterval(id)
   }, [active, stepIndex])
 
-  return anchors
+  /* Stale anchors are simply not handed out — no state to clear on the way. */
+  return active ? anchors : null
 }

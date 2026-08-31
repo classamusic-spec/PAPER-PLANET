@@ -58,11 +58,22 @@ export interface CardSpec {
   theme: CardTheme
   /** Heavier hairlines and firmer ink, mirroring the app's High Ink setting. */
   highInk: boolean
-  /** Backing-store multiplier. 2 = retina. */
+  /**
+   * Backing-store multiplier on top of the design grid. `1` gives the two sizes
+   * below exactly; the preview asks for a fraction, and `2` gives a 2160-wide
+   * file for anyone who wants to print one.
+   */
   pixelRatio: number
 }
 
-/** Design-space size of each shape, before `pixelRatio`. */
+/**
+ * The design grid, which is also the exported pixel size at `pixelRatio: 1`.
+ *
+ * The grid is deliberately twice the ~540pt the card occupies on a phone: the
+ * whole layout is specified at 2×, so every hairline, crease and glyph carries
+ * half-pixel detail on a retina screen and the two shapes come out at exactly
+ * the sizes a feed and a story want.
+ */
 export const CARD_SIZE: Record<CardShape, { w: number; h: number }> = {
   square: { w: 1080, h: 1080 },
   story: { w: 1080, h: 1920 },

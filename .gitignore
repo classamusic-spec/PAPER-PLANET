@@ -11,6 +11,8 @@
 .fold-e2e.mjs
 .icons.mjs
 .live-test.mjs
+.mix-live.mjs
+.mix-render.mjs
 .reveal-shot.mjs
 .seed.mjs
 .shoot-share.mjs

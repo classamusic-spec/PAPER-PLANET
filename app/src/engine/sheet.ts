@@ -16,16 +16,27 @@ const MIN_SPLIT_AREA = 6
 /** Hard ceiling so a pathological recipe cannot melt a phone. */
 export const MAX_FACETS = 640
 /**
- * How far out of the crease's own plane a layer may sit and still be considered
- * part of the same sheet of paper for this fold, in model units (the sheet is
- * 1000 across). Coplanar layers land at ~1e-10; a flap standing at even a
- * degree is hundreds of units away.
+ * How far a layer's plane may lean away from the crease's own plane and still
+ * count as being on this fold, as |cos| of the angle between them.
+ *
+ * A crease is a line on a sheet: a layer standing at ninety degrees simply does
+ * not carry it and must be left alone. But recipes routinely fold to 165, not
+ * 180, and those layers are still to all intents flat against each other — hold
+ * them to exact coplanarity and every near-flat layer gets skipped while its
+ * neighbour folds, which tears the paper just as surely. cos 20 degrees.
  */
-const PLANE_EPS = 1e-3
+const COPLANAR_MIN = 0.94
 /** Stride of `Sheet.laxis`: ax, ay, bx, by, angle, coplanar. */
 const AX = 6
 /** Two facets are still one piece of paper if their shared edge agrees to this. */
 export const JOIN_EPS = 1e-3
+/** Shortest shared boundary that counts as a join, in model units. */
+const JOIN_MIN = 0.25
+
+/** Two moving spans this close along a shared edge are the same span. */
+const SPAN_EPS = 1e-4
+const SPAN_A = new Float64Array(2)
+const SPAN_B = new Float64Array(2)
 
 export interface CreaseOptions {
   /** Signed rotation in radians. */
@@ -50,6 +61,35 @@ export interface CreaseOptions {
   invertLayers: boolean
   /** Force the moved stack above (+1) or below (-1); 0 = derive from the fold direction. */
   stackBias: number
+}
+
+/**
+ * Whether the model is still one sheet of paper.
+ *
+ * Area conservation is not enough: a fold can preserve every square unit and
+ * still hinge two layers about different lines, which leaves every facet in
+ * perfect condition and the bird in pieces. The invariant that actually matters
+ * is that two facets sharing an edge on the flat sheet still share it in space.
+ */
+export interface SheetIntegrity {
+  /** Joins between facets that no longer meet in space. 0 is the invariant. */
+  severed: number
+  /** Widest gap across a severed join, in model units (the sheet is 1000). */
+  maxGap: number
+  /** Connected pieces the paper is in. 1 is a single sheet. */
+  pieces: number
+  /** Facets left with essentially no area. */
+  degenerate: number
+  /** Facet vertices that are not finite numbers. */
+  nonFinite: number
+  /** Total material area — should never leave 1e6. */
+  area: number
+  /** Shared edges checked. */
+  joins: number
+}
+
+export function emptyIntegrity(): SheetIntegrity {
+  return { severed: 0, maxGap: 0, pieces: 1, degenerate: 0, nonFinite: 0, area: 0, joins: 0 }
 }
 
 export interface CreaseResult {
@@ -98,9 +138,9 @@ let creaseSeq = 0
  * The paper.
  *
  * Every node's local frame is model-plane space — the flat sheet — which is the
- * trick that makes this composable: applying a crease means rotating about the
- * *same* material line in each affected layer's own frame, so folding through
- * eight layers is eight sibling hinges, not eight special cases.
+ * trick that makes this composable: applying a crease means rotating about one
+ * line in SPACE, written into each affected layer's own frame, so folding
+ * through eight layers is eight sibling hinges, not eight special cases.
  */
 export class Sheet {
   facets: Facet[] = []
@@ -125,6 +165,13 @@ export class Sheet {
   private laxis = new Float64Array(64 * AX)
   /** Scratch: world matrices as they will be once the step in flight settles. */
   private swld = new Float64Array(64 * 12)
+  /** Shared-edge index: facet pairs and the midpoint of the edge they share. */
+  private joinA = new Int32Array(256)
+  private joinB = new Int32Array(256)
+  private joinM = new Float64Array(1024)
+  private joinN = 0
+  private joinVersion = -1
+  private dsu = new Int32Array(64)
 
   constructor() {
     this.reset()
@@ -302,21 +349,27 @@ export class Sheet {
       const daz = awz - S[b0 + 11]
       const lax = S[b0] * dax + S[b0 + 4] * day + S[b0 + 8] * daz
       const lay = S[b0 + 1] * dax + S[b0 + 5] * day + S[b0 + 9] * daz
-      const laz = S[b0 + 2] * dax + S[b0 + 6] * day + S[b0 + 10] * daz
       const dbx = bwx - S[b0 + 3]
       const dby = bwy - S[b0 + 7]
       const dbz = bwz - S[b0 + 11]
       const lbx = S[b0] * dbx + S[b0 + 4] * dby + S[b0 + 8] * dbz
       const lby = S[b0 + 1] * dbx + S[b0 + 5] * dby + S[b0 + 9] * dbz
-      const lbz = S[b0 + 2] * dbx + S[b0 + 6] * dby + S[b0 + 10] * dbz
 
-      if (!(Math.abs(laz) <= PLANE_EPS) || !(Math.abs(lbz) <= PLANE_EPS)) {
-        // This layer is not in the crease's plane: it is not on this fold.
+      // How square is this layer to the crease's plane? Sheet normals are the
+      // third column of each frame; either facing counts, a layer folded flat
+      // against another is the same plane seen from the back.
+      const face = Math.abs(
+        (S[b0 + 2] * S[2] + S[b0 + 6] * S[6] + S[b0 + 10] * S[10]),
+      )
+      if (!(face >= COPLANAR_MIN)) {
+        // Standing away from the crease's plane: this layer is not on this fold.
         L[o] = ax; L[o + 1] = ay; L[o + 2] = bx; L[o + 3] = by
         L[o + 4] = angle
         L[o + 5] = 0
         continue
       }
+      // Near enough flat: drop the out-of-plane part, which is the orthogonal
+      // projection of the crease onto the paper this layer actually is.
 
       const lnx = S[b0] * nwx + S[b0 + 4] * nwy + S[b0 + 8] * nwz
       const lny = S[b0 + 1] * nwx + S[b0 + 5] * nwy + S[b0 + 9] * nwz
@@ -333,16 +386,14 @@ export class Sheet {
     }
   }
 
-  /** True when the crease last pulled back genuinely lies on this node's layer. */
-  private axisCoplanar(node: number): boolean {
-    return this.laxis[node * AX + 5] === 1
-  }
-
   /**
    * Apply one crease. Every facet straddling the axis is split; the half on
    * `crease.side` is re-parented into a fresh hinge under whichever node
-   * currently owns it, so a fold through N layers spawns N sibling hinges that
-   * all turn about the same material line.
+   * currently owns it, so a fold through N layers spawns N sibling hinges —
+   * each carrying that one crease as it falls in ITS OWN layer, so all of them
+   * turn about the same line in space. See buildLocalAxes: the same material
+   * line in every layer is only the same crease while the sheet is flat, and
+   * using it after that is what tears the paper.
    */
   applyCrease(crease: Crease, opts: CreaseOptions, out: CreaseResult): boolean {
     // Orient the axis so the moving half is always the positive (left) side.
@@ -650,6 +701,280 @@ export class Sheet {
       }
     }
     return false
+  }
+
+  /* ── integrity: is this still one sheet of paper? ─────────────────────── */
+
+  /**
+   * Index every shared edge in the flat sheet.
+   *
+   * The facets tile the original square exactly once, so two of them sharing a
+   * boundary segment ARE joined — that segment is a fold or an un-cut line of
+   * paper, never a gap. Segments are bucketed by the line they lie on, so
+   * finding the overlaps is near linear rather than every-pair; a T-junction
+   * (a vertex of one facet part-way along another's edge) is picked up because
+   * the test is interval overlap, not endpoint equality.
+   */
+  private buildJoins(): void {
+    if (this.joinVersion === this.geomVersion) return
+    this.joinVersion = this.geomVersion
+    const facets = this.facets
+    const buckets = new Map<number, number[]>()
+    const sf: number[] = []
+    const sx: number[] = []
+    const sy: number[] = []
+    const su: number[] = []
+    const sv: number[] = []
+    const sl: number[] = []
+    for (let i = 0; i < facets.length; i++) {
+      const p = facets[i].poly
+      const n = p.length
+      for (let k = 0; k < n; k += 2) {
+        const x0 = p[k]
+        const y0 = p[k + 1]
+        const x1 = p[(k + 2) % n]
+        const y1 = p[(k + 3) % n]
+        let dx = x1 - x0
+        let dy = y1 - y0
+        const len = Math.sqrt(dx * dx + dy * dy)
+        if (!(len > JOIN_MIN)) continue
+        dx /= len
+        dy /= len
+        // Canonical (unsigned) line: normal with a fixed sign, plus its offset.
+        let nx = -dy
+        let ny = dx
+        if (nx < -EPS || (Math.abs(nx) <= EPS && ny < 0)) {
+          nx = -nx
+          ny = -ny
+        }
+        const key = (Math.round(nx * 2048) * 4093 + Math.round(ny * 2048)) * 8191 +
+          Math.round((nx * x0 + ny * y0) * 32)
+        const idx = sf.length
+        sf.push(i); sx.push(x0); sy.push(y0); su.push(dx); sv.push(dy); sl.push(len)
+        const arr = buckets.get(key)
+        if (arr) arr.push(idx)
+        else buckets.set(key, [idx])
+      }
+    }
+
+    let n = 0
+    const push = (a: number, b: number, x0: number, y0: number, x1: number, y1: number): void => {
+      if (n >= this.joinA.length) {
+        const a2 = new Int32Array(this.joinA.length * 2)
+        a2.set(this.joinA)
+        this.joinA = a2
+        const b2 = new Int32Array(this.joinB.length * 2)
+        b2.set(this.joinB)
+        this.joinB = b2
+        const m2 = new Float64Array(this.joinM.length * 2)
+        m2.set(this.joinM)
+        this.joinM = m2
+      }
+      this.joinA[n] = a
+      this.joinB[n] = b
+      this.joinM[n * 4] = x0
+      this.joinM[n * 4 + 1] = y0
+      this.joinM[n * 4 + 2] = x1
+      this.joinM[n * 4 + 3] = y1
+      n++
+    }
+    buckets.forEach((list) => {
+      for (let a = 0; a < list.length; a++) {
+        const ia = list[a]
+        for (let b = a + 1; b < list.length; b++) {
+          const ib = list[b]
+          if (sf[ia] === sf[ib]) continue
+          const ux = su[ia]
+          const uy = sv[ia]
+          const t0 = (sx[ib] - sx[ia]) * ux + (sy[ib] - sy[ia]) * uy
+          const t1 = t0 + su[ib] * ux * sl[ib] + sv[ib] * uy * sl[ib]
+          const lo = Math.max(0, Math.min(t0, t1))
+          const hi = Math.min(sl[ia], Math.max(t0, t1))
+          if (hi - lo < JOIN_MIN) continue
+          push(
+            sf[ia], sf[ib],
+            sx[ia] + ux * lo, sy[ia] + uy * lo,
+            sx[ia] + ux * hi, sy[ia] + uy * hi,
+          )
+        }
+      }
+    })
+    this.joinN = n
+  }
+
+  /**
+   * Measure the invariant: every shared edge still shared, in space.
+   *
+   * Cheap enough for a debug overlay and for the self-test; not something to
+   * call inside the frame loop.
+   */
+  integrity(out: SheetIntegrity = emptyIntegrity()): SheetIntegrity {
+    this.updateWorld()
+    this.buildJoins()
+    const facets = this.facets
+    const nf = facets.length
+    if (this.dsu.length < nf) this.dsu = new Int32Array(nf * 2)
+    const dsu = this.dsu
+    for (let i = 0; i < nf; i++) dsu[i] = i
+    const find = (a: number): number => {
+      let r = a
+      while (dsu[r] !== r) r = dsu[r]
+      while (dsu[a] !== r) {
+        const nx = dsu[a]
+        dsu[a] = r
+        a = nx
+      }
+      return r
+    }
+
+    let severed = 0
+    let maxGap = 0
+    for (let k = 0; k < this.joinN; k++) {
+      const a = this.joinA[k]
+      const b = this.joinB[k]
+      const ma = this.nodes[facets[a].node].world
+      const mb = this.nodes[facets[b].node].world
+      // Both ends of the shared edge: a hinge can pin one end and swing the other.
+      let gap = 0
+      for (let e = 0; e < 2; e++) {
+        const x = this.joinM[k * 4 + e * 2]
+        const y = this.joinM[k * 4 + e * 2 + 1]
+        const dx = (ma[0] * x + ma[1] * y + ma[3]) - (mb[0] * x + mb[1] * y + mb[3])
+        const dy = (ma[4] * x + ma[5] * y + ma[7]) - (mb[4] * x + mb[5] * y + mb[7])
+        const dz = (ma[8] * x + ma[9] * y + ma[11]) - (mb[8] * x + mb[9] * y + mb[11])
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz)
+        if (d > gap) gap = d
+      }
+      if (gap > JOIN_EPS) {
+        severed++
+        if (gap > maxGap) maxGap = gap
+      } else {
+        const ra = find(a)
+        const rb = find(b)
+        if (ra !== rb) dsu[ra] = rb
+      }
+    }
+
+    let pieces = 0
+    let degenerate = 0
+    let nonFinite = 0
+    let area = 0
+    for (let i = 0; i < nf; i++) {
+      if (find(i) === i) pieces++
+      const f = facets[i]
+      area += Math.abs(f.area)
+      if (!(f.area > AREA_EPS)) degenerate++
+      for (let k = 0; k < f.poly.length; k++) {
+        const v = f.poly[k]
+        if (!(v - v === 0)) nonFinite++
+      }
+    }
+    out.severed = severed
+    out.maxGap = maxGap
+    out.pieces = nf === 0 ? 0 : pieces
+    out.degenerate = degenerate
+    out.nonFinite = nonFinite
+    out.area = area
+    out.joins = this.joinN
+    return out
+  }
+
+  /**
+   * The narrowest scope at or above `scope` that this crease can fold without
+   * severing a join.
+   *
+   * Scoping a move too narrowly is the other way to tear paper: fold one layer
+   * of a two-layer wing and the crease runs straight through the fold that
+   * holds them together. Widening is always safe for the join — both sides then
+   * turn as one — so walk outward until nothing is severed, and only then give
+   * up and return the least bad option. Nothing here mutates the sheet; it is a
+   * question asked before the cut, not a repair after it.
+   */
+  safeScope(crease: Crease, scope: number, exclude: number): number {
+    orientAxis(crease, AXIS)
+    const dx = AXIS[2] - AXIS[0]
+    const dy = AXIS[3] - AXIS[1]
+    const len = Math.sqrt(dx * dx + dy * dy)
+    if (!(len > 1e-3)) return scope
+    this.buildLocalAxes(AXIS[0], AXIS[1], AXIS[2], AXIS[3], 0)
+    this.buildJoins()
+    const invLen = 1 / len
+
+
+    let best = scope
+    let bestCut = Infinity
+    let n = scope
+    let guard = 0
+    for (;;) {
+      const cut = this.severedBy(n, exclude, invLen)
+      if (cut === 0) return n
+      if (cut < bestCut) {
+        bestCut = cut
+        best = n
+      }
+      if (n < 0 || guard++ > 256) break
+      n = n === 0 ? -1 : Math.max(0, this.nodes[n].parent)
+    }
+    return best
+  }
+
+  /**
+   * How many joins a crease at this scope would sever. Pure.
+   *
+   * A shared edge is not one point: a crease can cross it, so each side of the
+   * join travels along part of the edge and stays put along the rest. What has
+   * to match is the whole *interval* that moves — sampling the middle alone
+   * happily reports a clean fold while the far end of the edge is being torn.
+   */
+  private severedBy(scope: number, exclude: number, invLen: number): number {
+    const facets = this.facets
+    let cut = 0
+    for (let k = 0; k < this.joinN; k++) {
+      const a = facets[this.joinA[k]]
+      const b = facets[this.joinB[k]]
+      if (a.node === b.node) continue
+      const o = k * 4
+      const x0 = this.joinM[o]
+      const y0 = this.joinM[o + 1]
+      const x1 = this.joinM[o + 2]
+      const y1 = this.joinM[o + 3]
+      this.movingSpan(a, x0, y0, x1, y1, scope, exclude, invLen, SPAN_A)
+      this.movingSpan(b, x0, y0, x1, y1, scope, exclude, invLen, SPAN_B)
+      if (Math.abs(SPAN_A[0] - SPAN_B[0]) > SPAN_EPS || Math.abs(SPAN_A[1] - SPAN_B[1]) > SPAN_EPS) cut++
+    }
+    return cut
+  }
+
+  /** The fraction of this shared edge that travels with the fold, as [t0, t1]. */
+  private movingSpan(
+    f: Facet, x0: number, y0: number, x1: number, y1: number,
+    scope: number, exclude: number, invLen: number, out: Float64Array,
+  ): void {
+    out[0] = 0
+    out[1] = 0
+    if (!this.isInSubtree(f.node, scope)) return
+    if (exclude >= 0 && this.isInSubtree(f.node, exclude)) return
+    const o = f.node * AX
+    if (this.laxis[o + 5] === 0) return
+    const ax = this.laxis[o]
+    const ay = this.laxis[o + 1]
+    const bx = this.laxis[o + 2]
+    const by = this.laxis[o + 3]
+    const d0 = sideDist(x0, y0, ax, ay, bx, by, invLen)
+    const d1 = sideDist(x1, y1, ax, ay, bx, by, invLen)
+    const m0 = d0 > ON_LINE
+    const m1 = d1 > ON_LINE
+    if (m0 && m1) {
+      out[1] = 1
+      return
+    }
+    if (!m0 && !m1) return
+    const t = clamp(d0 / (d0 - d1), 0, 1)
+    if (m0) out[1] = t
+    else {
+      out[0] = t
+      out[1] = 1
+    }
   }
 
   /** Total material area. Conserved across every fold — the engine's invariant. */

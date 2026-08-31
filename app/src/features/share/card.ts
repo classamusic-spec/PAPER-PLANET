@@ -12,11 +12,11 @@
  */
 
 import { edgePath, hashSeed, mulberry32, stableTilt } from '../../ui/paperShapes'
-import { paintContactShadow, paintFoilBloom, paintKami } from './kami'
-import { paintLockup, measureLockup } from './logotype'
-import { accentColor, cardPalette, shadow, type CardPalette } from './palette'
+import { fitKami, paintContactShadow, paintFoilBloom, paintKami, type Rect } from './kami'
+import { measureLockup, paintLockup } from './logotype'
+import { accentColor, cardPalette, mix, shadow, type CardPalette } from './palette'
 import { layGrain } from './texture'
-import { drawBlock, drawText, fitBlock, fitLine, type Block, type FontSpec } from './text'
+import { drawBlock, drawText, fitBlock, fitHeadline, type Block, type FontSpec } from './text'
 import { CARD_SIZE, type CardData, type CardSpec } from './types'
 
 /* ── the shape of a card, in design units ────────────────────────────────── */
@@ -39,28 +39,38 @@ interface Metrics {
   minKami: number
   /** Gap between the creature and the name. */
   rise: number
+  /** Where the fold meets the sheet's left edge, as a fraction of its height. */
+  crease: number
 }
 
 const METRICS: Record<'square' | 'story', Metrics> = {
   square: {
     w: 1080, h: 1080, desk: 38, pad: 66,
-    label: 21, nameSize: 84, nameMin: 52, binoSize: 30,
-    factSize: 27, factMin: 22, factLines: 4,
-    lockup: 30, minKami: 296, rise: 34,
+    label: 21, nameSize: 82, nameMin: 52, binoSize: 29,
+    factSize: 26, factMin: 21, factLines: 4,
+    lockup: 33, minKami: 300, rise: 30, crease: 0.6,
   },
   story: {
     w: 1080, h: 1920, desk: 44, pad: 74,
-    label: 24, nameSize: 108, nameMin: 62, binoSize: 37,
-    factSize: 33, factMin: 26, factLines: 5,
-    lockup: 38, minKami: 440, rise: 48,
+    label: 24, nameSize: 110, nameMin: 62, binoSize: 38,
+    factSize: 32, factMin: 26, factLines: 5,
+    lockup: 41, minKami: 460, rise: 44, crease: 0.66,
   },
 }
 
-interface Box { x: number; y: number; w: number; h: number }
+/** The angle of the fold that crosses everything in this brand. */
+const CREASE_DEG = 34
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE DESK AND THE SHEET
    ═══════════════════════════════════════════════════════════════════════════ */
+
+function hexA(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
 
 /** The desk the card lies on: paper's darkest value, lit from above-left. */
 function paintDesk(ctx: CanvasRenderingContext2D, m: Metrics, p: CardPalette, night: boolean): void {
@@ -68,80 +78,88 @@ function paintDesk(ctx: CanvasRenderingContext2D, m: Metrics, p: CardPalette, ni
   ctx.fillRect(0, 0, m.w, m.h)
 
   /* Night is not dark mode: it is a warm lamp pooling on a dark desk (§4.3). */
-  const pool = ctx.createRadialGradient(m.w * 0.5, m.h * 0.42, 0, m.w * 0.5, m.h * 0.42, m.h * 0.78)
+  const pool = ctx.createRadialGradient(m.w * 0.5, m.h * 0.4, 0, m.w * 0.5, m.h * 0.4, m.h * 0.8)
   if (night) {
-    pool.addColorStop(0, hexA(p.kincha, 0.16))
+    pool.addColorStop(0, hexA(p.kincha, 0.17))
     pool.addColorStop(0.55, hexA(p.kincha, 0.05))
     pool.addColorStop(1, hexA(p.kincha, 0))
   } else {
-    pool.addColorStop(0, hexA(p.paper0, 0.2))
+    pool.addColorStop(0, hexA(p.paper0, 0.22))
     pool.addColorStop(1, hexA(p.paper0, 0))
   }
   ctx.fillStyle = pool
   ctx.fillRect(0, 0, m.w, m.h)
 
-  layGrain(ctx, p, { x: 0, y: 0, w: m.w, h: m.h }, 0.8)
+  layGrain(ctx, p, { x: 0, y: 0, w: m.w, h: m.h }, 0.85)
 }
 
 /** The boundary of the sheet: a mould-made deckle, generated from the seed. */
-function sheetPath(box: Box, seed: string): Path2D {
-  const d = edgePath(box.w, box.h, seed, 'deckle', 22)
+function sheetPath(box: Rect, seed: string): Path2D {
   const path = new Path2D()
-  const sub = new Path2D(d)
-  const m = new DOMMatrix().translateSelf(box.x, box.y)
-  path.addPath(sub, m)
+  path.addPath(new Path2D(edgePath(box.w, box.h, seed, 'deckle', 22)), new DOMMatrix().translateSelf(box.x, box.y))
   return path
 }
 
 /**
- * One fold across the sheet at the icon's 34°, lit above and shadowed below,
- * so the card is a folded thing rather than a printed rectangle.
+ * One fold across the sheet at the icon's 34°.
+ *
+ * A fold in real paper is a narrow event: a band of shadow a few centimetres
+ * wide on the far side of the crease, a catch-light on the near side, and flat
+ * sheet again either way. Shading the whole half-page instead — which is what a
+ * literal reading of the app icon gives you — makes the card look like two
+ * pieces of card taped together.
  */
-function paintCrease(ctx: CanvasRenderingContext2D, box: Box, p: CardPalette, at: number): void {
-  const slope = Math.tan((34 * Math.PI) / 180)
-  const x0 = box.x - 40
-  const x1 = box.x + box.w + 40
+function paintCrease(ctx: CanvasRenderingContext2D, box: Rect, p: CardPalette, at: number): void {
+  const slope = Math.tan((CREASE_DEG * Math.PI) / 180)
+  const x0 = box.x - 60
+  const x1 = box.x + box.w + 60
   const y0 = box.y + box.h * at
   const y1 = y0 - (x1 - x0) * slope
 
-  const under = new Path2D()
-  under.moveTo(x0, y0)
-  under.lineTo(x1, y1)
-  under.lineTo(x1, box.y + box.h + 60)
-  under.lineTo(x0, box.y + box.h + 60)
-  under.closePath()
+  /* a unit normal pointing down-right, away from the light */
+  const len = Math.hypot(x1 - x0, y1 - y0)
+  const nx = -(y1 - y0) / len
+  const ny = (x1 - x0) / len
+  const dark = Math.min(box.w, box.h) * 0.085
+  const lit = dark * 0.5
+
+  const band = (from: number, to: number): Path2D => {
+    const path = new Path2D()
+    path.moveTo(x0 + nx * from, y0 + ny * from)
+    path.lineTo(x1 + nx * from, y1 + ny * from)
+    path.lineTo(x1 + nx * to, y1 + ny * to)
+    path.lineTo(x0 + nx * to, y0 + ny * to)
+    path.closePath()
+    return path
+  }
 
   ctx.save()
-  ctx.globalAlpha = 0.85
-  ctx.fillStyle = p.paper2
-  ctx.fill(under)
-  ctx.globalAlpha = 1
 
-  /* the crease line itself, and the catch-light riding on top of it */
-  ctx.lineWidth = 2
-  ctx.strokeStyle = hexA(p.paperEdge, 0.85)
+  const down = ctx.createLinearGradient(x0, y0, x0 + nx * dark, y0 + ny * dark)
+  down.addColorStop(0, mix(p.paper1, p.paper3, 0.5))
+  down.addColorStop(0.28, mix(p.paper1, p.paper2, 0.6))
+  down.addColorStop(1, p.paper1)
+  ctx.fillStyle = down
+  ctx.fill(band(0, dark))
+
+  const up = ctx.createLinearGradient(x0, y0, x0 - nx * lit, y0 - ny * lit)
+  up.addColorStop(0, hexA(p.paper0, 0.62))
+  up.addColorStop(1, hexA(p.paper0, 0))
+  ctx.fillStyle = up
+  ctx.fill(band(0, -lit))
+
+  /* the crease itself — one hair, barely there */
+  ctx.lineWidth = 1
+  ctx.strokeStyle = hexA(p.paperEdge, 0.55)
   ctx.beginPath()
   ctx.moveTo(x0, y0)
   ctx.lineTo(x1, y1)
   ctx.stroke()
-
-  ctx.lineWidth = 3
-  ctx.strokeStyle = hexA(p.paper0, 0.5)
-  ctx.beginPath()
-  ctx.moveTo(x0, y0 - 3)
-  ctx.lineTo(x1, y1 - 3)
-  ctx.stroke()
   ctx.restore()
 }
 
-/** Lay the sheet down: shadow, paper, fibre, fold, rim. Leaves it clipped. */
-function paintSheet(
-  ctx: CanvasRenderingContext2D,
-  box: Box,
-  p: CardPalette,
-  seed: string,
-  creaseAt: number,
-): Path2D {
+/** Lay the sheet down: shadow, paper, fibre, fold, rim. */
+function paintSheet(ctx: CanvasRenderingContext2D, box: Rect, p: CardPalette, seed: string, creaseAt: number): Path2D {
   const path = sheetPath(box, seed)
 
   ctx.save()
@@ -170,16 +188,9 @@ function paintSheet(
   return path
 }
 
-function hexA(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
-}
-
-function rule(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, p: CardPalette, strong = false): void {
+function rule(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, p: CardPalette): void {
   ctx.save()
-  ctx.strokeStyle = strong ? hexA(p.inkFaint, 0.5) : p.inkHair
+  ctx.strokeStyle = p.inkHair
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.moveTo(x, Math.round(y) + 0.5)
@@ -199,27 +210,25 @@ function rule(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, p:
 export function paintCard(ctx: CanvasRenderingContext2D, data: CardData, spec: CardSpec): void {
   const m = METRICS[spec.shape]
   const p = cardPalette(spec.theme, spec.highInk)
-  const night = spec.theme === 'night'
 
   ctx.save()
   ctx.scale(spec.pixelRatio, spec.pixelRatio)
   ctx.clearRect(0, 0, m.w, m.h)
 
-  paintDesk(ctx, m, p, night)
+  paintDesk(ctx, m, p, spec.theme === 'night')
 
-  const sheet: Box = { x: m.desk, y: m.desk, w: m.w - m.desk * 2, h: m.h - m.desk * 2 }
-  const creaseAt = data.layout === 'crowd' ? 0.74 : 0.62
-  const path = paintSheet(ctx, sheet, p, data.seed, creaseAt)
+  const sheet: Rect = { x: m.desk, y: m.desk, w: m.w - m.desk * 2, h: m.h - m.desk * 2 }
+  const path = paintSheet(ctx, sheet, p, data.seed, data.layout === 'crowd' ? m.crease - 0.22 : m.crease)
 
   ctx.save()
   ctx.clip(path)
-  const content: Box = {
+  const content: Rect = {
     x: sheet.x + m.pad,
     y: sheet.y + m.pad,
     w: sheet.w - m.pad * 2,
     h: sheet.h - m.pad * 2,
   }
-  if (data.layout === 'crowd') paintCrowd(ctx, data, m, p, content, spec)
+  if (data.layout === 'crowd') paintCrowd(ctx, data, m, p, content, sheet, spec)
   else paintSpecimen(ctx, data, m, p, content, spec)
   ctx.restore()
 
@@ -229,13 +238,7 @@ export function paintCard(ctx: CanvasRenderingContext2D, data: CardData, spec: C
 const LABEL = (size: number): FontSpec => ({ family: 'text', size, weight: 800, tracking: 0.14 })
 
 /** The two tracked labels along the top, and the rule beneath them. */
-function paintHeader(
-  ctx: CanvasRenderingContext2D,
-  data: CardData,
-  m: Metrics,
-  p: CardPalette,
-  c: Box,
-): number {
+function paintHeader(ctx: CanvasRenderingContext2D, data: CardData, m: Metrics, p: CardPalette, c: Rect): number {
   const f = LABEL(m.label)
   const baseline = c.y + m.label
 
@@ -256,37 +259,75 @@ function paintHeader(
   return ruleY
 }
 
+interface Footer {
+  /** Baseline of the hairline above the maker's line. */
+  ruleY: number
+  top: number
+  height: number
+  lock: { width: number; height: number }
+  font: FontSpec
+  lead: number
+  tagline: boolean
+}
+
+/**
+ * Measure the maker's line without drawing it. The world on a planet card is
+ * painted across the whole sheet, so the footer has to know where it goes
+ * before anything covers the place it goes.
+ */
+function measureFooter(ctx: CanvasRenderingContext2D, data: CardData, m: Metrics, c: Rect, spec: CardSpec): Footer {
+  const tagline = spec.shape === 'story'
+  const lock = measureLockup(ctx, { size: m.lockup, tagline, mark: true })
+  const font: FontSpec = { family: 'text', size: Math.round(m.label * 1.02), weight: 600 }
+  const lead = Math.round(font.size * 1.42)
+  const height = Math.max(lock.height, data.provenance.length * lead)
+  const top = c.y + c.h - height
+  return { ruleY: top - m.label * 1.6, top, height, lock, font, lead, tagline }
+}
+
 /** The maker's line: what it was folded from, and the mark that signs it. */
 function paintFooter(
   ctx: CanvasRenderingContext2D,
   data: CardData,
   m: Metrics,
   p: CardPalette,
-  c: Box,
-  spec: CardSpec,
-): number {
-  const tagline = spec.shape === 'story'
-  const lock = measureLockup(ctx, { size: m.lockup, tagline, mark: true })
-  const provFont: FontSpec = { family: 'text', size: Math.round(m.label * 1.02), weight: 600 }
-  const lead = Math.round(provFont.size * 1.42)
-  const provH = data.provenance.length * lead
+  c: Rect,
+  f: Footer,
+): void {
+  paintLockup(ctx, c.x + c.w - f.lock.width, f.top + (f.height - f.lock.height) / 2, p, {
+    size: m.lockup,
+    tagline: f.tagline,
+    mark: true,
+  })
 
-  const height = Math.max(lock.height, provH)
-  const bottom = c.y + c.h
-  const top = bottom - height
-
-  const lockLeft = c.x + c.w - lock.width
-  paintLockup(ctx, lockLeft, top + (height - lock.height) / 2, p, { size: m.lockup, tagline, mark: true })
-
-  let y = top + (height - provH) / 2 + provFont.size
+  const provH = data.provenance.length * f.lead
+  let y = f.top + (f.height - provH) / 2 + f.font.size
   for (const line of data.provenance) {
-    drawText(ctx, line, c.x, y, provFont, p.inkFaint)
-    y += lead
+    drawText(ctx, line, c.x, y, f.font, p.inkFaint)
+    y += f.lead
   }
 
-  const ruleY = top - m.label * 1.5
-  rule(ctx, c.x, ruleY, c.w, p)
-  return ruleY
+  rule(ctx, c.x, f.ruleY, c.w, p)
+}
+
+/**
+ * The prose. Centred while it is a line or two — any longer and it is set as a
+ * block, because BRAND §5 does not centre a paragraph and a centred four-liner
+ * is exactly the ragged shape it is warning about.
+ */
+function paintProse(
+  ctx: CanvasRenderingContext2D,
+  block: Block,
+  font: FontSpec,
+  c: Rect,
+  firstBaseline: number,
+  fill: string,
+): void {
+  if (block.lines.length <= 2) {
+    drawBlock(ctx, block, font, c.x + c.w / 2, firstBaseline, fill, 'center')
+    return
+  }
+  drawBlock(ctx, block, font, c.x + (c.w - block.width) / 2, firstBaseline, fill, 'left')
 }
 
 /* ── one Kami, on its own ────────────────────────────────────────────────── */
@@ -296,74 +337,79 @@ function paintSpecimen(
   data: CardData,
   m: Metrics,
   p: CardPalette,
-  c: Box,
+  c: Rect,
   spec: CardSpec,
 ): void {
   const headRule = paintHeader(ctx, data, m, p, c)
-  const footRule = paintFooter(ctx, data, m, p, c, spec)
+  const footer = measureFooter(ctx, data, m, c, spec)
+  paintFooter(ctx, data, m, p, c, footer)
 
-  const top = headRule + m.rise * 1.1
-  const bottom = footRule - m.rise * 0.9
+  const top = headRule + m.rise * 0.95
+  const bottom = footer.ruleY - m.rise * 0.7
 
   /* set the type first — the creature takes what is left */
-  const nameFont = fitLine(
-    ctx,
-    data.title,
-    { family: 'display', size: m.nameSize, weight: 800, tracking: -0.02 },
-    c.w,
-    m.nameMin,
-  )
+  const nameFont: FontSpec = { family: 'display', size: m.nameSize, weight: 800, tracking: -0.02 }
+  const head = fitHeadline(ctx, data.title, nameFont, c.w, m.nameMin, 2)
   const binoFont: FontSpec = { family: 'display', size: m.binoSize, weight: 400, italic: true }
   const factFont: FontSpec = { family: 'text', size: m.factSize, weight: 400 }
+  const measureWidth = Math.round(c.w * 0.94)
 
-  const nameCap = nameFont.size * 0.74
-  const binoLead = Math.round(binoFont.size * 1.62)
+  const nameCap = head.height
+  const binoLead = Math.round(binoFont.size * 1.52)
+  const factGap = Math.round(binoFont.size * 1.02)
 
   let fact: Block | null = data.fact
-    ? fitBlock(ctx, data.fact, factFont, c.w, m.factLines, m.factMin, 1.52)
+    ? fitBlock(ctx, data.fact, factFont, measureWidth, m.factLines, m.factMin, 1.46)
     : null
-  const factGap = Math.round(binoFont.size * 1.15)
 
   const textH = (f: Block | null): number => nameCap + binoLead + (f ? factGap + f.height : 0)
   /* the codex fact rides along only if the creature still has room to be seen */
   if (fact && bottom - top - textH(fact) - m.rise < m.minKami) {
     const tighter = data.fact
-      ? fitBlock(ctx, data.fact, factFont, c.w, Math.max(2, m.factLines - 1), m.factMin, 1.46)
+      ? fitBlock(ctx, data.fact, factFont, measureWidth, Math.max(2, m.factLines - 1), m.factMin, 1.4)
       : null
     fact = tighter && bottom - top - textH(tighter) - m.rise >= m.minKami ? tighter : null
   }
 
   const zoneH = bottom - top - textH(fact) - m.rise
-  const size = Math.max(120, Math.min(zoneH, c.w * 0.92))
   const kami = data.kami[0]
 
   if (kami) {
+    const box: Rect = {
+      x: c.x + c.w * 0.03,
+      y: top,
+      w: c.w * 0.94,
+      /* leave the creature its own shadow's worth of ground to stand on */
+      h: Math.max(120, zoneH - zoneH * 0.06),
+    }
     const cx = c.x + c.w / 2
-    const kx = cx - size / 2
-    const ky = top + (zoneH - size) / 2
-    if (kami.golden) paintFoilBloom(ctx, cx, ky + size * 0.5, size * 0.62, p)
-    paintContactShadow(ctx, cx, ky + size * 0.9, size * 0.82, p)
+    const cy = top + zoneH / 2
+
     ctx.save()
     /* nothing in this app is machine-square */
-    ctx.translate(cx, ky + size / 2)
-    ctx.rotate((stableTilt(`k-${data.seed}`, 1.6) * Math.PI) / 180)
-    ctx.translate(-cx, -(ky + size / 2))
-    paintKami(ctx, kami.art, kx, ky, size, p, {
+    ctx.translate(cx, cy)
+    ctx.rotate((stableTilt(`k-${data.seed}`, 1.5) * Math.PI) / 180)
+    ctx.translate(-cx, -cy)
+
+    const ink = fitKami(kami.art, box)
+    if (kami.golden) paintFoilBloom(ctx, cx, box.y + box.h / 2, Math.max(ink.w, ink.h) * 0.72, p)
+    paintContactShadow(ctx, cx, ink.y + ink.h + ink.h * 0.028, ink.w * 0.78, p)
+    paintKami(ctx, kami.art, box, p, {
       gold: kami.golden,
       hair: p.inkHair,
-      hairWidth: spec.highInk ? 2.4 : 1.5,
+      hairWidth: spec.highInk ? 3.6 : 2.4,
     })
     ctx.restore()
   }
 
-  let y = top + zoneH + m.rise + nameCap
-  drawText(ctx, data.title, c.x + c.w / 2, y, nameFont, p.ink, 'center')
+  let y = top + zoneH + m.rise + head.size * 0.74
+  y = drawBlock(ctx, head, nameFont, c.x + c.w / 2, y, p.ink, 'center')
   y += binoLead
   drawText(ctx, data.subtitle, c.x + c.w / 2, y, binoFont, p.inkFaint, 'center')
 
   if (fact) {
     y += factGap + fact.size
-    drawBlock(ctx, fact, factFont, c.x + c.w / 2, y, p.inkSoft, 'center')
+    paintProse(ctx, fact, factFont, c, y, p.inkSoft)
   }
 }
 
@@ -374,143 +420,113 @@ function paintCrowd(
   data: CardData,
   m: Metrics,
   p: CardPalette,
-  c: Box,
+  c: Rect,
+  sheet: Rect,
   spec: CardSpec,
 ): void {
-  const headRule = paintHeader(ctx, data, m, p, c)
-  const footRule = paintFooter(ctx, data, m, p, c, spec)
+  /* nothing is painted until the world is: its ground runs the width of the
+     sheet and would bury anything already on the paper */
+  const footer = measureFooter(ctx, data, m, c, spec)
+  const headRule = c.y + m.label + m.label * 0.95
 
-  const top = headRule + m.rise * 1.1
-  const bottom = footRule - m.rise * 0.9
+  const top = headRule + m.rise * 1.05
+  const bottom = footer.ruleY - m.rise * 0.85
 
-  const nameFont = fitLine(
-    ctx,
-    data.title,
-    { family: 'display', size: m.nameSize, weight: 800, tracking: -0.02 },
-    c.w,
-    m.nameMin,
-  )
-  const subFont: FontSpec = { family: 'text', size: Math.round(m.binoSize * 0.92), weight: 600 }
+  const nameFont: FontSpec = { family: 'display', size: Math.round(m.nameSize * 0.86), weight: 800, tracking: -0.02 }
+  const head = fitHeadline(ctx, data.title, nameFont, c.w, m.nameMin, 2)
+  const subFont: FontSpec = { family: 'text', size: Math.round(m.binoSize * 0.94), weight: 600 }
   const factFont: FontSpec = { family: 'text', size: m.factSize, weight: 400 }
+  const measureWidth = Math.round(c.w * 0.94)
 
-  const nameCap = nameFont.size * 0.74
+  const nameCap = head.height
   const subLead = Math.round(subFont.size * 1.7)
-  const fact = data.fact ? fitBlock(ctx, data.fact, factFont, c.w, 2, m.factMin, 1.5) : null
+  const fact = data.fact ? fitBlock(ctx, data.fact, factFont, measureWidth, 2, m.factMin, 1.5) : null
   const factGap = Math.round(subFont.size * 1.05)
 
+  /* A world only needs so much sky. Cap the zone and share the surplus above
+     and below the group, so a tall story card is composed rather than stretched. */
   const textH = nameCap + subLead + (fact ? factGap + fact.height : 0)
-  const zoneH = bottom - top - textH - m.rise
+  const avail = bottom - top
+  const zoneH = Math.min(avail - textH - m.rise, c.w * 0.92)
+  const y0 = top + Math.max(0, avail - (zoneH + m.rise + textH)) * 0.56
 
-  paintWorld(ctx, data, m, p, c, { x: c.x, y: top, w: c.w, h: zoneH })
+  paintWorld(ctx, data, p, { x: c.x, y: y0, w: c.w, h: zoneH }, sheet)
+  paintHeader(ctx, data, m, p, c)
+  paintFooter(ctx, data, m, p, c, footer)
 
-  let y = top + zoneH + m.rise + nameCap
-  drawText(ctx, data.title, c.x + c.w / 2, y, nameFont, p.ink, 'center')
+  let y = y0 + zoneH + m.rise + head.size * 0.74
+  y = drawBlock(ctx, head, nameFont, c.x + c.w / 2, y, p.ink, 'center')
   y += subLead
   drawText(ctx, data.subtitle, c.x + c.w / 2, y, subFont, p.inkSoft, 'center')
   if (fact) {
     y += factGap + fact.size
-    drawBlock(ctx, fact, factFont, c.x + c.w / 2, y, p.inkFaint, 'center')
+    paintProse(ctx, fact, factFont, c, y, p.inkSoft)
   }
 }
 
 /**
- * The planet itself: a disc of recessed paper with its own fold, and the
- * collection standing along the curve of it.
+ * The world: a curved horizon running the full width of the sheet, with the
+ * collection standing along it.
+ *
+ * The first attempt drew a whole disc, which spilled off the paper and buried
+ * the type under half a planet. A horizon says the same thing — this is a small
+ * round world and these live on it — and leaves the sheet a sheet.
  */
-function paintWorld(
-  ctx: CanvasRenderingContext2D,
-  data: CardData,
-  m: Metrics,
-  p: CardPalette,
-  c: Box,
-  zone: Box,
-): void {
-  const cx = zone.x + zone.w / 2
-  /* a shallow horizon: a big radius, only its cap showing above the fold */
-  const rise = Math.min(zone.h * 0.42, zone.w * 0.3)
-  const radius = (zone.w * zone.w) / (8 * rise) + rise / 2
+function paintWorld(ctx: CanvasRenderingContext2D, data: CardData, p: CardPalette, zone: Rect, sheet: Rect): void {
+  const list = data.kami
+  const cx = sheet.x + sheet.w / 2
+  const rise = zone.h * 0.4
+  const radius = (sheet.w * sheet.w) / (8 * rise) + rise / 2
   const cy = zone.y + zone.h - rise + radius
+  const floor = sheet.y + sheet.h + 80
 
-  const disc = new Path2D()
-  disc.arc(cx, cy, radius, 0, Math.PI * 2)
-
-  ctx.save()
-  ctx.shadowColor = shadow(p, 0.16)
-  ctx.shadowBlur = 30
-  ctx.shadowOffsetY = 8
-  ctx.fillStyle = p.paper2
-  ctx.fill(disc)
-  ctx.restore()
+  const ground = new Path2D()
+  ground.arc(cx, cy, radius, Math.PI, Math.PI * 2)
+  ground.lineTo(cx + radius, floor)
+  ground.lineTo(cx - radius, floor)
+  ground.closePath()
 
   ctx.save()
-  ctx.clip(disc)
-  /* the mountain fold running across the little world, at the icon's 34° */
-  const slope = Math.tan((34 * Math.PI) / 180)
-  const x0 = cx - radius
-  const y0 = cy - radius * 0.06
-  const x1 = cx + radius
-  const y1 = y0 - (x1 - x0) * slope
-  const under = new Path2D()
-  under.moveTo(x0, y0)
-  under.lineTo(x1, y1)
-  under.lineTo(x1, cy + radius)
-  under.lineTo(x0, cy + radius)
-  under.closePath()
-  ctx.globalAlpha = 0.55
-  ctx.fillStyle = p.paper3
-  ctx.fill(under)
-  ctx.globalAlpha = 1
-  ctx.strokeStyle = hexA(p.paperEdge, 0.9)
-  ctx.lineWidth = 2
-  ctx.beginPath()
-  ctx.moveTo(x0, y0)
-  ctx.lineTo(x1, y1)
-  ctx.stroke()
-  layGrain(ctx, p, { x: cx - radius, y: cy - radius, w: radius * 2, h: radius * 2 }, 1.1)
+  ctx.fillStyle = mix(p.paper1, p.paper2, 0.62)
+  ctx.fill(ground)
+  layGrain(ctx, p, { x: sheet.x, y: zone.y, w: sheet.w, h: floor - zone.y }, 0.5)
   ctx.restore()
 
+  /* the horizon itself: the cut edge of the world */
   ctx.save()
   ctx.strokeStyle = p.paperEdge
   ctx.lineWidth = 1.6
-  ctx.stroke(disc)
+  ctx.beginPath()
+  ctx.arc(cx, cy, radius, Math.PI, Math.PI * 2)
+  ctx.stroke()
   ctx.restore()
 
-  /* stand the collection along the curve, biggest in the middle */
-  const list = data.kami
   if (list.length === 0) return
+
+  /* stand the collection along the curve, biggest in the middle */
   const rand = mulberry32(hashSeed(data.seed))
-  const spread = Math.min(1.02, 0.26 + list.length * 0.1)
-  const base = Math.min(zone.h * 0.46, (zone.w / Math.max(3.1, list.length * 0.92)) * 1.5)
+  const half = zone.w / 2
+  const spread = Math.asin(Math.min(0.86, (half * 0.84) / radius))
+  const step = list.length > 1 ? (2 * spread * radius) / (list.length - 1) : zone.w * 0.4
+  const base = Math.min(step * 1.32, zone.h - rise - 10, zone.w * 0.34)
 
   list.forEach((k, i) => {
     const t = list.length === 1 ? 0 : (i / (list.length - 1)) * 2 - 1
     const angle = t * spread
     const px = cx + Math.sin(angle) * radius
     const py = cy - Math.cos(angle) * radius
-    const size = base * (0.74 + (1 - Math.abs(t)) * 0.3) * (0.92 + rand() * 0.16)
-    const tilt = angle * 0.42
+    const size = base * (0.82 + (1 - Math.abs(t)) * 0.24) * (0.94 + rand() * 0.12)
 
     ctx.save()
     ctx.translate(px, py)
-    ctx.rotate(tilt)
-    if (k.golden) paintFoilBloom(ctx, 0, -size * 0.5, size * 0.66, p)
-    paintContactShadow(ctx, 0, -size * 0.06, size * 0.78, p)
-    paintKami(ctx, k.art, -size / 2, -size * 0.96, size, p, { gold: k.golden, hair: p.inkHair })
+    ctx.rotate(angle)
+    const box: Rect = { x: -size / 2, y: -size, w: size, h: size }
+    const ink = fitKami(k.art, box)
+    if (k.golden) paintFoilBloom(ctx, 0, -size * 0.52, size * 0.5, p)
+    paintContactShadow(ctx, 0, ink.y + ink.h + size * 0.015, ink.w * 0.78, p)
+    paintKami(ctx, k.art, box, p, { gold: k.golden, hair: p.inkHair, hairWidth: 2 })
     ctx.restore()
   })
-
-  /* how many did not fit on the card — said plainly, never as a badge */
-  if (data.moreCount) {
-    drawText(
-      ctx,
-      `and ${data.moreCount} more`,
-      c.x + c.w,
-      zone.y + zone.h,
-      { family: 'text', size: Math.round(m.label * 1.02), weight: 600 },
-      p.inkFaint,
-      'right',
-    )
-  }
 }
 
 /** Everything a caller needs to size a canvas for one card. */

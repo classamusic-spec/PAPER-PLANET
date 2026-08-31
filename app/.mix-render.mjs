@@ -22,8 +22,10 @@ const browser = await chromium.launch({
 })
 const page = await browser.newPage()
 page.on('console', (m) => { if (m.type() === 'error') console.error('  [page]', m.text()) })
-await page.addInitScript({ content: METER })
 await page.goto('http://localhost:3000/', { waitUntil: 'domcontentloaded' })
+// A classic <script>, not addInitScript: the init world does not share its
+// lexical top level with evaluate().
+await page.addScriptTag({ content: METER })
 
 const out = await page.evaluate(async (old) => {
   const mix = await import('/src/audio/mix.ts')
@@ -144,7 +146,7 @@ const out = await page.evaluate(async (old) => {
     ENV[id] = e
   }
 
-  async function renderFriction(n, p, seconds, { limit = false } = {}) {
+  async function renderFriction(n, p, seconds, { limit = false, keep = false } = {}) {
     const ctx = new OfflineAudioContext(2, Math.ceil(SR * seconds), SR)
     const { busOf } = chain(ctx, { limit })
     const sfx = busOf('sfx')
@@ -212,7 +214,8 @@ const out = await page.evaluate(async (old) => {
       src.stop(t + m.grainDur + 0.02)
       t += (1 / m.grainRate) * (0.78 + Math.random() * 0.44)
     }
-    return measure(await ctx.startRendering())
+    const rendered = await ctx.startRendering()
+    return keep ? { ...measure(rendered), buf: rendered } : measure(rendered)
   }
 
   /* ══════════ a one-shot down the real sampler path ══════════ */
@@ -296,39 +299,88 @@ const out = await page.evaluate(async (old) => {
     return measure(await ctx.startRendering())
   }
 
-  /* ══════════ how much the limiter moves the bed under a crease ══════════ */
-  function bedDipDb(rendered) {
-    const c = rendered.getChannelData(0)
-    const win = Math.round(SR * 0.05)
+  /* ══════════ what the limiter actually does ══════════
+     Render the same material twice, with the limiter and without, and read the
+     difference. That is the gain reduction, exactly, including the attack and
+     release the maths on paper cannot model — and it is applied to the whole
+     master bus, so whatever it takes off the crease it also takes off the bed.
+  */
+  /**
+   * 100 ms RMS, hopping 25 ms. Deliberately long: the two renders are only
+   * aligned to within a sample or two after the shift below, and on a 20 ms
+   * window a crease onset landing one window early reads as 12 dB of
+   * "limiting" that is nothing of the sort. Over 100 ms that error is under a
+   * third of a dB, and 100 ms is also the timescale on which a bed audibly
+   * ducks — which is the thing being measured.
+   */
+  function envelope(buf, shift = 0) {
+    const c = buf.getChannelData(0)
+    const win = Math.round(SR * 0.1)
+    const hop = Math.round(SR * 0.025)
     const env = []
-    for (let i = 0; i + win < c.length; i += win) {
+    for (let i = 0; i + win + shift < c.length; i += hop) {
       let s = 0
-      for (let j = i; j < i + win; j++) s += c[j] * c[j]
+      for (let j = i + shift; j < i + shift + win; j++) s += c[j] * c[j]
       env.push(Math.sqrt(s / win))
     }
-    // The bed alone runs 0..0.9 s; the creases land from 1.0 s.
-    const quiet = env.slice(4, 17).sort((a, b) => a - b)
-    const ref = quiet[quiet.length >> 1]
-    // Look at the bed 150-450 ms after each crease, where the cue itself is
-    // over but the limiter's 220 ms release still has the master pinned down.
-    let worst = 0
-    for (const at of [1.0, 1.6, 2.2, 2.8]) {
-      const a = Math.round((at + 0.15) / 0.05)
-      const b = Math.round((at + 0.45) / 0.05)
-      const seg = env.slice(a, b).sort((x, y) => x - y)
-      const mid = seg[seg.length >> 1]
-      const dip = db(ref) - db(mid)
-      if (dip > worst) worst = dip
+    return env
+  }
+
+  /**
+   * Chrome's DynamicsCompressorNode carries a pre-delay, so the two renders
+   * are not sample-aligned and a naive difference reads 14 dB of "limiting"
+   * that is really just a shifted transient. Find the shift by correlating the
+   * two around the first crease.
+   */
+  function bestShift(withLim, without) {
+    const a = withLim.getChannelData(0)
+    const b = without.getChannelData(0)
+    const from = Math.round(SR * 0.95)
+    const len = Math.round(SR * 0.3)
+    let best = 0
+    let bestScore = -Infinity
+    for (let lag = 0; lag <= Math.round(SR * 0.02); lag += 1) {
+      let dot = 0
+      for (let i = 0; i < len; i += 4) dot += a[from + i + lag] * b[from + i]
+      if (dot > bestScore) { bestScore = dot; best = lag }
     }
-    return worst
+    return best
+  }
+  function reduction(withLim, without) {
+    const shift = bestShift(withLim, without)
+    const a = envelope(withLim, shift)
+    const b = envelope(without)
+    const n = Math.min(a.length, b.length)
+    const raw = []
+    for (let i = 0; i < n; i++) raw.push(b[i] > 1e-6 ? db(b[i]) - db(a[i]) : 0)
+    // Chrome's DynamicsCompressorNode carries a 6 ms pre-delay and a fixed
+    // makeup gain derived from threshold/knee/ratio, so the raw difference is
+    // offset even where the compressor is doing nothing. Calibrate both out on
+    // the stretch where only the bed is playing (0.2-0.9 s, before the first
+    // crease at 1.0 s) — whatever is left is real gain reduction.
+    // The compressor's pre-delay buffer starts full of zeros, so the first
+    // ~250 ms of a render is a startup artefact, not limiting. Everything is
+    // judged from 0.3 s on, which is still well before the first crease.
+    const START = Math.round(0.3 / 0.025)
+    const quiet = raw.slice(START, 36).sort((x, y) => x - y)
+    const makeup = quiet[quiet.length >> 1]
+    const gr = raw.slice(START).map((v) => v - makeup)
+    const over = gr.filter((v) => v > 0.5).length
+    let arg = 0
+    for (let i = 0; i < gr.length; i++) if (gr[i] > gr[arg]) arg = i
+    return {
+      peak: Math.max(...gr), duty: (100 * over) / gr.length, makeup, shiftMs: (1000 * shift) / SR,
+      peakAtSec: (arg + START) * 0.025 + 0.05,
+      series: gr.filter((_, i) => i % 4 === 0).map((v) => +v.toFixed(2)),
+    }
   }
 
   const res = {
     crease: await renderCue('crease.crisp'),
     creaseSoft: await renderCue('crease.soft'),
     friction: {},
-    bed: (await renderBed(6)).li,
-    bedDucked: (await renderBed(6, { ducked: true })).li,
+    bed: (await renderBed(20)).li,
+    bedDucked: (await renderBed(20, { ducked: true })).li,
     music: (await renderMusic(40)).li,
     droneOnly: (await renderMusic(20, { notes: false })).li,
     musicNote: (await renderMusic(6, { notes: true })).l100,
@@ -337,12 +389,40 @@ const out = await page.evaluate(async (old) => {
     res.friction[label] = await renderFriction(n, p, 4)
   }
 
-  // limiter behaviour under real material
-  const pumped = await renderBed(4, { limit: true, withCrease: true })
-  res.bedDip = bedDipDb(pumped.buf)
-  res.mixPeakDb = pumped.peakDb
+  /** Push an already-rendered buffer through the limiter alone. */
+  async function relimit(buf) {
+    const ctx = new OfflineAudioContext(buf.numberOfChannels, buf.length, buf.sampleRate)
+    const lim = ctx.createDynamicsCompressor()
+    lim.threshold.value = M.limiter.thresholdDb
+    lim.knee.value = M.limiter.kneeDb
+    lim.ratio.value = M.limiter.ratio
+    lim.attack.value = M.limiter.attack
+    lim.release.value = M.limiter.release
+    lim.connect(ctx.destination)
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    src.connect(lim)
+    src.start()
+    return await ctx.startRendering()
+  }
 
-  delete pumped.buf
+  // The densest thing the friction voice can produce: a hard, steady rub. Every
+  // grain source is in play and they overlap five deep. If the limiter touches
+  // this, the bed pumps under the player's own finger.
+  {
+    const dry = await renderFriction(0.55, 1.0, 4, { limit: false, keep: true })
+    res.pressedLimiter = reduction(await relimit(dry.buf), dry.buf)
+  }
+
+  // limiter behaviour under real material: bed + four creases
+  const limited = await renderBed(4, { limit: true, withCrease: true })
+  const clean = await renderBed(4, { limit: false, withCrease: true })
+  res.limiter = reduction(limited.buf, clean.buf)
+  res.mixPeakDb = limited.peakDb
+  res.mixPeakUnlimitedDb = clean.peakDb
+
+  delete limited.buf
+  delete clean.buf
   return res
 }, OLD)
 
@@ -367,9 +447,14 @@ console.log(pad('  …ducked, in the Studio', 26), pd(f1(out.bedDucked), 9), pd(
 console.log(pad('music (drone + notes)', 26), pd(f1(out.music), 9), pd(f1(out.musicNote), 9), pd('', 9), pd(f1(out.music - ref), 10))
 console.log(pad('  …drone alone', 26), pd(f1(out.droneOnly), 9), pd('', 9), pd('', 9), pd(f1(out.droneOnly - ref), 10))
 
-console.log(`\n${OLD ? 'BEFORE' : 'AFTER'} — what the limiter does to the room when you crease\n`)
-console.log(`  bed level dropped by ${f1(out.bedDip)} dB after a crease (pumping)`)
-console.log(`  peak out of the whole chain: ${f1(out.mixPeakDb)} dBFS`)
+console.log(`\n${OLD ? 'BEFORE' : 'AFTER'} — the safety limiter, on a bed plus four creases\n`)
+console.log(`  peak gain reduction        ${f1(out.limiter.peak)} dB   ` +
+  `(compressor pre-delay ${f1(out.limiter.shiftMs)} ms and ${f1(out.limiter.makeup)} dB of Chrome's own makeup calibrated out)`)
+console.log(`  time spent over 0.5 dB GR  ${f1(out.limiter.duty)} %  (this is the room ducking under your own folding)`)
+console.log(`  peak out of the chain      ${f1(out.mixPeakDb)} dBFS   (unlimited: ${f1(out.mixPeakUnlimitedDb)})`)
+console.log(`  a hard steady rub, alone:  ${f1(out.pressedLimiter.peak)} dB peak GR, ` +
+  `over 0.5 dB for ${f1(out.pressedLimiter.duty)} % of it`)
+if (process.argv.includes('--gr')) console.log('  GR at 100ms steps:', out.limiter.series.join(' '), '| peak at', f1(out.limiter.peakAtSec), 's')
 console.log()
 
 await browser.close()

@@ -1,14 +1,17 @@
 /* PAPER PLANET — Settings. A paper form, not a list of OS switches. */
 
 import { useCallback, useRef, useState } from 'react'
-import type { AmbienceId, Settings } from '../../contracts'
+import type { AmbienceId, AudioBus, Settings } from '../../contracts'
 import { actions, useAtelier, useSettings, useStorefrontOpen } from '../../systems'
 import { audio } from '../../audio'
 import { useNavigation } from '../../shell/Navigator'
 import { Button, Icon, IconButton, Slider, Toggle, useToast } from '../../ui'
 import { Choice, Field, Section } from './Controls'
-import { useAudioSettings } from './audioSettings'
+import { useAudioSettings, useBusPreview } from './audioSettings'
 import './settings.css'
+
+/** A fader reads as a level, and zero reads as a decision. */
+const level = (v: number): string => (v <= 0 ? 'Off' : `${Math.round(v * 100)}%`)
 
 const AMBIENCE: { value: AmbienceId; label: string }[] = [
   { value: 'meadow', label: 'Meadow' },
@@ -29,11 +32,26 @@ export default function SettingsScreen() {
   const [confirmReset, setConfirmReset] = useState(false)
 
   useAudioSettings(settings)
+  const preview = useBusPreview()
 
   const set = useCallback(<K extends keyof Settings>(key: K, value: Settings[K]) => {
     actions.updateSettings({ [key]: value } as Partial<Settings>)
     audio.play('ui.toggle')
   }, [])
+
+  /**
+   * Move a fader and hear that fader. Paper for Everything and Paper, a note
+   * for Music, and for Room the bed itself — which is already playing, so the
+   * slider moves the real room live and only needs a sample of its own when
+   * the player has chosen silence.
+   */
+  const setVolume = useCallback(
+    (bus: AudioBus, value: number) => {
+      actions.setVolume(bus, value)
+      preview(bus)
+    },
+    [preview],
+  )
 
   const exportSave = useCallback(() => {
     const json = actions.exportSaveJson()
@@ -112,44 +130,52 @@ export default function SettingsScreen() {
         </Section>
 
         <Section title="Sound" note="The paper is the point. The rest is a room." icon="sound-on" seed="sound" tilt={-0.4}>
-          <Field label="Everything" stacked>
+          <Field label="Everything" hint="Move any of these and you will hear what you are setting." stacked>
             <Slider
-              label="Master volume"
+              label="Everything"
+              ariaLabel="Master volume"
               value={settings.volumes.master}
               min={0}
               max={1}
               step={0.05}
-              onChange={(v) => actions.setVolume('master', v)}
+              format={level}
+              onChange={(v) => setVolume('master', v)}
             />
           </Field>
-          <Field label="Paper" stacked>
+          <Field label="Paper" hint="Creases, folds, the rub of your finger. The instrument." stacked>
             <Slider
-              label="Paper volume"
+              label="Paper"
+              ariaLabel="Paper volume"
               value={settings.volumes.sfx}
               min={0}
               max={1}
               step={0.05}
-              onChange={(v) => actions.setVolume('sfx', v)}
+              format={level}
+              onChange={(v) => setVolume('sfx', v)}
             />
           </Field>
-          <Field label="Room" stacked>
+          <Field label="Room" hint="The bed under everything. It stays behind the paper at any setting." stacked>
             <Slider
-              label="Ambience volume"
+              label="Room"
+              ariaLabel="Ambience volume"
               value={settings.volumes.ambience}
               min={0}
               max={1}
               step={0.05}
-              onChange={(v) => actions.setVolume('ambience', v)}
+              format={level}
+              onChange={(v) => setVolume('ambience', v)}
             />
           </Field>
-          <Field label="Music" stacked>
+          <Field label="Music" hint="Sparse notes, far back. Quiet enough to forget it is there." stacked>
             <Slider
-              label="Music volume"
+              label="Music"
+              ariaLabel="Music volume"
               value={settings.volumes.music}
               min={0}
               max={1}
               step={0.05}
-              onChange={(v) => actions.setVolume('music', v)}
+              format={level}
+              onChange={(v) => setVolume('music', v)}
             />
           </Field>
           <Field label="Ambience" hint="A bed under everything. Silence is a real choice." stacked>
@@ -161,7 +187,7 @@ export default function SettingsScreen() {
               onChange={(v) => set('ambience', v)}
             />
           </Field>
-          <Field label="Music" hint="Sparse notes, never a loop you can hear.">
+          <Field label="Play music" hint="Sparse notes, never a loop you can hear.">
             <Toggle checked={settings.music} onChange={(v) => set('music', v)} label="Music" />
           </Field>
         </Section>

@@ -167,6 +167,33 @@ export interface Block {
   size: number
   leading: number
   height: number
+  /** The measure the lines were actually set to, after balancing. */
+  width: number
+}
+
+/**
+ * Narrow the measure until the line count is about to change. Setting a
+ * paragraph to the widest measure that fits leaves orphans — a last line
+ * holding one word — and a card is too small a thing to carry one.
+ */
+function balance(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  f: FontSpec,
+  maxWidth: number,
+  lines: string[],
+): { lines: string[]; width: number } {
+  if (lines.length < 2) return { lines, width: maxWidth }
+  let best = lines
+  let width = maxWidth
+  for (let k = 0.97; k >= 0.68; k -= 0.03) {
+    const w = maxWidth * k
+    const tryLines = wrap(ctx, text, f, w)
+    if (tryLines.length !== lines.length) break
+    best = tryLines
+    width = w
+  }
+  return { lines: best, width }
 }
 
 /**
@@ -185,26 +212,60 @@ export function fitBlock(
   leadingRatio = 1.5,
 ): Block | null {
   for (let size = f.size; size >= minSize; size -= 1) {
-    const lines = wrap(ctx, text, { ...f, size }, maxWidth)
+    const at: FontSpec = { ...f, size }
+    const lines = wrap(ctx, text, at, maxWidth)
     if (lines.length <= maxLines) {
+      const even = balance(ctx, text, at, maxWidth, lines)
       const leading = Math.round(size * leadingRatio)
-      return { lines, size, leading, height: leading * lines.length }
+      return {
+        lines: even.lines,
+        size,
+        leading,
+        height: leading * even.lines.length,
+        width: even.width,
+      }
     }
   }
   return null
 }
 
-/** Shrink a single line until it fits. Long species names never overhang. */
-export function fitLine(
+/**
+ * Set a display line so it cannot overhang, whatever it says.
+ *
+ * A species name is at most fifteen characters, but a player names their own
+ * Kami and will name one "Mochi the Extraordinarily Long-Named Flying
+ * Squirrel". So: shrink to fit on one line; failing that wrap to two; failing
+ * that cut at a word and mark the cut. The card is never allowed to clip.
+ */
+export function fitHeadline(
   ctx: CanvasRenderingContext2D,
   text: string,
   f: FontSpec,
   maxWidth: number,
   minSize: number,
-): FontSpec {
-  let size = f.size
-  while (size > minSize && measure(ctx, text, { ...f, size }) > maxWidth) size -= 1
-  return { ...f, size }
+  maxLines = 2,
+): Block {
+  const made = (lines: string[], size: number): Block => {
+    const leading = Math.round(size * 1.06)
+    return { lines, size, leading, height: size * 0.74 + (lines.length - 1) * leading, width: maxWidth }
+  }
+
+  for (let size = f.size; size >= minSize; size -= 1) {
+    if (measure(ctx, text, { ...f, size }) <= maxWidth) return made([text], size)
+  }
+  for (let size = Math.round(f.size * 0.8); size >= minSize; size -= 1) {
+    const lines = wrap(ctx, text, { ...f, size }, maxWidth)
+    if (lines.length <= maxLines) return made(lines, size)
+  }
+
+  const size = minSize
+  const at: FontSpec = { ...f, size }
+  const lines = wrap(ctx, text, at, maxWidth).slice(0, maxLines)
+  const last = lines.length - 1
+  let tail = lines[last]
+  while (tail.length > 1 && measure(ctx, `${tail}…`, at) > maxWidth) tail = tail.slice(0, -1).trimEnd()
+  lines[last] = `${tail}…`
+  return made(lines, size)
 }
 
 /** Draw a set block from its first baseline. Returns the baseline after the last line. */

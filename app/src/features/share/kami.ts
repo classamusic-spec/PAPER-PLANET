@@ -164,10 +164,22 @@ function paintArt(
 }
 
 /**
- * Paint one creature as large as it will go inside `box`, keeping its aspect,
- * and return the rectangle its ink actually occupies — which is where a shadow
- * belongs and how much room the next thing has.
+ * Where a creature's ink will land inside `box`, largest it will go, aspect
+ * kept. Answered without drawing, because a contact shadow has to be painted
+ * before the model that casts it.
  */
+export function fitKami(art: readonly ArtPoly[], box: Rect): Rect {
+  const b = artBounds(art)
+  const scale = Math.min(box.w / b.w, box.h / b.h)
+  return {
+    x: box.x + (box.w - b.w * scale) / 2,
+    y: box.y + (box.h - b.h * scale) / 2,
+    w: b.w * scale,
+    h: b.h * scale,
+  }
+}
+
+/** Paint one creature into `box`, and return the rectangle its ink occupies. */
 export function paintKami(
   ctx: CanvasRenderingContext2D,
   art: readonly ArtPoly[],
@@ -177,12 +189,7 @@ export function paintKami(
 ): Rect {
   const b = artBounds(art)
   const scale = Math.min(box.w / b.w, box.h / b.h)
-  const drawn: Rect = {
-    x: box.x + (box.w - b.w * scale) / 2,
-    y: box.y + (box.h - b.h * scale) / 2,
-    w: b.w * scale,
-    h: b.h * scale,
-  }
+  const drawn = fitKami(art, box)
 
   ctx.save()
   ctx.translate(drawn.x, drawn.y)

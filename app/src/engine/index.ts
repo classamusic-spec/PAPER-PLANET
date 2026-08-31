@@ -4,7 +4,7 @@ import type {
   CameraPose, Crease, FoldEngine, FoldKind, FoldRecipe, FoldStep,
   PaperMaterial, Vec2,
 } from '../contracts'
-import type { CreaseResult } from './sheet'
+import type { CreaseResult, SheetIntegrity } from './sheet'
 import { Sheet, orientAxis } from './sheet'
 import { OrbitCamera } from './camera'
 import { Shader, invalidateCssCache, readLighting } from './shade'
@@ -15,7 +15,8 @@ import { HALF } from './types'
 import { bowAmount, bowStrengthFor, buildFan, buildStrips, flapExtent, stripCount } from './bend'
 import { DEG, EPS, clamp, clamp01, finite, matRotAboutPoint, smoothstep } from './geom'
 
-export { Sheet } from './sheet'
+export { Sheet, emptyIntegrity } from './sheet'
+export type { SheetIntegrity, CreaseResult, CreaseOptions } from './sheet'
 export { OrbitCamera } from './camera'
 export { Shader, readLighting, parseColor, foldOcclusion } from './shade'
 export { Renderer } from './render'
@@ -53,7 +54,7 @@ interface Snapshot {
  * The sheet is a planar subdivision of facets over a fold tree. Creasing splits
  * every facet that straddles the axis and re-parents the moving halves into
  * fresh hinges, so folding through eight layers is eight sibling rotations about
- * one material line. Rendering projects, shades and depth-sorts those facets,
+ * one line in space. Rendering projects, shades and depth-sorts those facets,
  * offsetting each stacked sheet along its normal by half a unit so the stack has
  * real thickness you can see at its edge.
  */
@@ -316,6 +317,18 @@ export class Fold3D implements FoldEngine {
       step: this.stepIndex,
       steps: this.recipe.steps.length,
     }
+  }
+
+  /**
+   * Is the model still one sheet of paper?
+   *
+   * `severed` is the invariant that matters: a fold that conserves every square
+   * unit of area can still hinge two layers about different lines and leave the
+   * model in pieces. Cheap enough for a debug overlay or a test; do not call it
+   * inside the frame loop.
+   */
+  integrity(out?: SheetIntegrity): SheetIntegrity {
+    return this.sheet.integrity(out)
   }
 
   /** Escape hatch for tooling. Treat as read-only. */
@@ -745,8 +758,10 @@ export class Fold3D implements FoldEngine {
   ): boolean {
     OPTS.angle = o.angle
     OPTS.kind = o.kind
-    OPTS.scope = o.scope
     OPTS.exclude = o.exclude ?? -1
+    // Ask before cutting: a scope too narrow folds one layer of a two-layer flap
+    // and drives the crease straight through the fold holding them together.
+    OPTS.scope = this.sheet.safeScope(c, o.scope, OPTS.exclude)
     OPTS.foldUp = o.foldUp
     OPTS.invertLayers = o.invertLayers
     OPTS.stackBias = o.stackBias
@@ -826,25 +841,6 @@ export class Fold3D implements FoldEngine {
     }
     // Never widen all the way to the root: that would fold the whole model.
     return shallowest
-  }
-
-  /** World-space direction of the hinge a crease would create inside `scope`. */
-  private worldHingeDir(c: Crease, scope: number): Float64Array {
-    orientAxis(c, this.axisBuf)
-    const m = this.sheet.nodes[scope >= 0 ? scope : 0].world
-    const dx = this.axisBuf[2] - this.axisBuf[0]
-    const dy = this.axisBuf[3] - this.axisBuf[1]
-    const out = new Float64Array(3)
-    out[0] = m[0] * dx + m[1] * dy
-    out[1] = m[4] * dx + m[5] * dy
-    out[2] = m[8] * dx + m[9] * dy
-    const l = Math.hypot(out[0], out[1], out[2])
-    if (l > EPS) {
-      out[0] /= l
-      out[1] /= l
-      out[2] /= l
-    }
-    return out
   }
 
   /**
