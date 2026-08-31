@@ -1,10 +1,13 @@
-/* PAPER PLANET — The Practice Sheet.
+/* PAPER PLANET — Practice: the fold sheet.
 
    Five folds, drawn from across the whole roster, each one dropped in at the
    moment its landmark matters. The reference is the only instruction. And this
    is the one screen in the app that shows you the number, because the Studio's
    refusal to grade you is right for making things and wrong for getting better
    at them.
+
+   One of the two drills on the Practice desk — the one that trains the hand.
+   The other one, next door in NotationQuiz, trains the eye.
 
    It pays nothing. Practising is its own reward, and BRAND section 12 keeps it
    that way — there is no sheet here you can buy your way past. */
@@ -25,7 +28,7 @@ const PAPER: PaperMaterial = { front: 'var(--beni)', back: 'var(--paper-back)' }
 
 const pct = (n: number): string => `${Math.round(n * 100)}%`
 
-export default function DrillScreen() {
+export default function FoldSheet() {
   const nav = useNavigation()
   const today = useGame((s) => s.today)
   const settings = useSettings()
@@ -92,7 +95,7 @@ export default function DrillScreen() {
       <header className="pp-drill__head">
         <IconButton icon="back" label="Back" variant="quiet" onClick={() => nav.back()} />
         <div className="pp-drill__title">
-          <h1>Practice</h1>
+          <h1>Folds</h1>
           <p>
             {finished ? 'Sheet finished' : `Fold ${Math.min(index + 1, rounds.length)} of ${rounds.length}`}
           </p>

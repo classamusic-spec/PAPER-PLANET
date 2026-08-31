@@ -32,6 +32,10 @@
   margin: 0;
 }
 .pp-drill__title p {
+  /* globals.css caps a paragraph at 62ch for readability, which on a wide
+     screen is narrower than this cell — and a centred line inside a box that
+     does not fill its cell is not centred on the screen. */
+  max-width: 100%;
   font-family: var(--font-text);
   font-size: var(--fs-micro);
   font-weight: 700;
@@ -282,4 +286,343 @@
 
 @media (min-width: 760px) {
   .pp-drill__ask h2 { max-width: 26ch; margin-inline: auto; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE DESK — where you choose which sheet to pick up.
+
+   Two cards, not a tab strip: they are two exercises with two records, and
+   picking one should feel like picking up a sheet of paper.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-practice__spacer { width: 44px; }
+
+.pp-practice__desk {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  gap: var(--s-4);
+  padding: var(--s-4);
+  max-width: 34rem;
+  width: 100%;
+  margin-inline: auto;
+}
+
+.pp-practice__card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: var(--s-5);
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  /* The whole card is the target, and it is a long way past 44pt. */
+  min-height: 96px;
+  transition: transform var(--t-quick) var(--ease-settle);
+}
+.pp-practice__card:hover { transform: translateY(-2px) rotate(var(--pp-tilt, 0deg)); }
+.pp-practice__card:active { transform: translateY(1px) rotate(var(--pp-tilt, 0deg)); }
+
+/* <Paper> wraps its children in a body of its own, so the layout goes there. */
+.pp-practice__card .pp-paper__body {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto auto auto;
+  gap: 2px var(--s-3);
+}
+
+.pp-practice__icon {
+  grid-area: 1 / 1 / 3 / 2;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--pp-mark, var(--beni)) 15%, transparent);
+  color: var(--pp-mark, var(--beni));
+}
+.pp-practice__eyebrow {
+  grid-area: 1 / 2 / 2 / 3;
+  align-self: end;
+  font-family: var(--font-text);
+  font-size: var(--fs-micro);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.pp-practice__name {
+  grid-area: 2 / 2 / 3 / 3;
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+}
+.pp-practice__blurb {
+  grid-area: 3 / 1 / 4 / 3;
+  margin-top: var(--s-3);
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.pp-practice__meta {
+  grid-area: 4 / 1 / 5 / 3;
+  margin-top: var(--s-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.pp-practice__meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+.pp-practice__done { color: var(--matcha-deep); }
+
+.pp-practice__foot {
+  padding: var(--s-3) var(--s-5);
+  padding-bottom: max(var(--s-5), env(safe-area-inset-bottom));
+  max-width: 34rem;
+  margin-inline: auto;
+}
+.pp-practice__foot p {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE NOTATION SHEET — a plate, a question, four answers.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-nq {
+  --nq-max: 30rem;
+  /* A screen never scrolls in this app — the shell clips it — so the sheet is
+     bounded and the part that can afford to scroll says so itself. */
+  height: 100dvh;
+}
+
+.pp-nq__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.pp-nq__stage {
+  margin-top: auto;
+  display: grid;
+  justify-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1) var(--s-4) 0;
+}
+
+
+/* The plate is a page from a book: white paper, ink, nothing else on it. */
+.pp-nq__plate {
+  width: min(76vw, 34vh);
+  max-width: 340px;
+  aspect-ratio: 1;
+  padding: var(--s-3);
+}
+.pp-nq__plate .pp-paper__body {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+.pp-nq__plate .pp-dia {
+  width: 100%;
+  height: 100%;
+}
+
+.pp-nq__ask {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-size: var(--fs-body-l);
+  font-weight: 600;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-display);
+  text-align: center;
+  text-wrap: balance;
+  margin: var(--s-4) auto var(--s-3);
+  padding: 0 var(--s-4);
+  max-width: 30rem;
+}
+
+.pp-nq__options {
+  list-style: none;
+  /* The auto below is half of centring the group: with the stage's auto top
+     margin it splits the spare height, and both collapse to nothing when a
+     short screen has none to spare, so the plate is never pushed off the top. */
+  margin: 0 auto auto;
+  padding: 0 var(--s-4);
+  display: grid;
+  gap: var(--s-2);
+  width: 100%;
+  max-width: var(--nq-max);
+}
+
+/* An answer is a sentence, so it sets like one: left, not centred, and in
+   text weight rather than the button kit's shouting 800. */
+.pp-nq__opt {
+  justify-content: flex-start;
+  text-align: left;
+  font-weight: 700;
+  line-height: var(--lh-snug);
+  padding-top: var(--s-3);
+  padding-bottom: var(--s-3);
+}
+.pp-nq__opt[data-mark] { cursor: default; }
+/* The one you picked, when it was not the one. Amber, never red: this is a
+   symbol you have now met, not a mistake you are being told off for. */
+.pp-nq__opt[data-mark='chosen'] {
+  --face: var(--kincha-soft);
+  box-shadow:
+    var(--btn-lift) var(--btn-lift) 0 0 var(--paper-3),
+    inset 0 0 0 1.5px var(--kincha);
+}
+.pp-nq__opt[data-mark='quiet'] {
+  opacity: 0.62;
+}
+
+.pp-nq__after {
+  display: grid;
+  align-content: center;
+  padding: var(--s-4);
+  padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+  /* Room kept for the verdict from the moment the question appears. */
+  min-height: 7.5rem;
+}
+.pp-nq__afterin {
+  display: grid;
+  justify-items: center;
+  gap: var(--s-3);
+  animation: pp-drill-land var(--t-base) var(--ease-settle) both;
+}
+.pp-nq__why {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  max-width: var(--nq-max);
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  text-wrap: balance;
+}
+.pp-nq__why svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--ink-faint);
+}
+
+/* ── the key, on the finished sheet ─────────────────────────────────────── */
+.pp-nq__gradenote {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: var(--s-2) 0 0;
+  text-wrap: balance;
+}
+.pp-nq__key {
+  list-style: none;
+  margin: var(--s-5) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+  text-align: left;
+}
+.pp-nq__key li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 2px var(--s-2);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.pp-nq__key li:last-child { border-bottom: 0; padding-bottom: 0; }
+.pp-nq__keymark {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: start center;
+  padding-top: 3px;
+  color: var(--matcha);
+}
+.pp-nq__key li[data-got='no'] .pp-nq__keymark { color: var(--kincha); }
+.pp-nq__keyform {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.pp-nq__keymeaning {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-nq__afterin { animation: none; }
+  .pp-practice__card { transition: none; }
+  .pp-practice__card:hover { transform: rotate(var(--pp-tilt, 0deg)); }
+}
+
+/* ── High Ink ───────────────────────────────────────────────────────────── */
+/* The setting paints `data-high-ink` on the root; `data-ink` is answered too
+   because the notation stylesheet next door is written against that name. */
+:root[data-high-ink='true'] .pp-nq__opt[data-mark='chosen'],
+:root[data-ink='high'] .pp-nq__opt[data-mark='chosen'] {
+  box-shadow:
+    var(--btn-lift) var(--btn-lift) 0 0 var(--ink),
+    inset 0 0 0 2.5px var(--kincha-deep);
+}
+:root[data-high-ink='true'] .pp-nq__opt[data-mark='quiet'],
+:root[data-ink='high'] .pp-nq__opt[data-mark='quiet'] { opacity: 0.85; }
+
+/* And the plate itself: heavier outlines, and a fold line at full strength,
+   because the thing being read here is a line a millimetre wide. */
+:root[data-high-ink='true'] .pp-nq__plate .pp-dia__paper polygon { stroke-width: 8; }
+:root[data-high-ink='true'] .pp-nq__plate .pp-dia__crease { opacity: 1; stroke-width: 8; }
+:root[data-high-ink='true'] .pp-nq__plate .pp-dia__arrow { stroke-width: 8; }
+
+/* ── tablet ─────────────────────────────────────────────────────────────── */
+@media (min-width: 760px) {
+  /* On a tall screen the answers and the verdict travel together in the middle
+     of the page instead of sitting a hand's width apart. */
+  .pp-nq__body { flex: 0 1 auto; margin-top: auto; }
+  .pp-nq__after { margin-bottom: auto; }
+  .pp-nq__plate { width: min(56vw, 38vh); max-width: 460px; }
+  .pp-nq__ask { font-size: var(--fs-title); }
+  .pp-nq__options { max-width: 34rem; }
+  .pp-nq__opt { font-size: var(--fs-body-l); }
+}
+
+/* A tall, narrow phone can afford a bigger plate than a short one. */
+@media (min-height: 760px) {
+  .pp-nq__plate { width: min(80vw, 34vh); }
+}
+
+/* A short phone — an SE, or a browser with a fat toolbar. The sheet still
+   scrolls if it must, but it should not have to for four short answers: all
+   four have to be seeable before you can honestly choose between them. */
+@media (max-height: 720px) {
+  .pp-nq__plate { width: min(70vw, 27vh); }
+  .pp-nq__ask { margin-top: var(--s-2); margin-bottom: var(--s-2); }
+  .pp-nq__opt { padding-top: var(--s-2); padding-bottom: var(--s-2); }
+  .pp-nq__after { min-height: 6rem; padding-top: var(--s-2); }
 }
