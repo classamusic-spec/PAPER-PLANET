@@ -1,0 +1,303 @@
+/* PAPER PLANET — The Codex. A pressed-flower book you actually want to read. */
+
+.pp-codex {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-1);
+  padding: var(--safe-t) var(--safe-r) 0 var(--safe-l);
+  overflow: hidden;
+}
+
+.pp-codex__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4) 0;
+  flex: 0 0 auto;
+}
+.pp-codex__spacer { width: var(--touch-min); flex: 0 0 auto; }
+.pp-codex__title { flex: 1 1 auto; text-align: center; min-width: 0; }
+.pp-codex__title h1 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-display-m);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0;
+}
+.pp-codex__title p {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+  margin: 2px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-codex__progress { padding: var(--s-3) var(--s-5) 0; flex: 0 0 auto; }
+.pp-codex__filters {
+  padding: var(--s-3) var(--s-4) var(--s-2);
+  flex: 0 0 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pp-codex__filters::-webkit-scrollbar { display: none; }
+
+.pp-codex__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s-4);
+  overflow: hidden;
+}
+.pp-codex__body.is-split { grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr); }
+
+.pp-codex__grid {
+  list-style: none;
+  margin: 0;
+  padding: var(--s-2) var(--s-4) calc(var(--s-8) + var(--safe-b));
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: var(--s-3);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+}
+@media (min-width: 768px) {
+  .pp-codex__grid { grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: var(--s-4); }
+}
+
+.pp-codex__aside {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-2) var(--s-4) calc(var(--s-8) + var(--safe-b)) 0;
+}
+
+.pp-codex__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-10) var(--s-6);
+  font-family: var(--font-text);
+  color: var(--ink-faint);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Cards and detail. The agent that authored the markup did not reach the
+   stylesheet, so these are written to the classes it used.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.cx-cell { display: block; }
+
+.cx-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-2);
+  width: 100%;
+  padding: var(--s-3);
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  font: inherit;
+  color: inherit;
+}
+.cx-card__plate {
+  display: block;
+  position: relative;
+  aspect-ratio: 1;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  padding: var(--s-2);
+}
+.cx-card__seal {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-pill);
+  background: var(--kincha-soft);
+  color: var(--kincha-deep);
+}
+.cx-card__name {
+  display: block;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-size: var(--fs-body-l);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+}
+.cx-card__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ── detail ─────────────────────────────────────────────────────────────── */
+.cx-detail { padding: var(--s-4) var(--s-4) var(--s-6); }
+.cx-detail__hero { display: grid; place-items: center; gap: var(--s-2); }
+.cx-detail__plate { width: min(58%, 220px); aspect-ratio: 1; display: grid; place-items: center; }
+.cx-detail__names { text-align: center; }
+.cx-detail__names h2,
+.cx-page__head h2 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-display-m);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0;
+}
+.cx-binomial {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-body);
+  color: var(--ink-faint);
+  margin: 2px 0 0;
+}
+.cx-detail__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+  margin: var(--s-4) 0;
+  list-style: none;
+  padding: 0;
+}
+.cx-detail__act { display: flex; justify-content: center; gap: var(--s-3); margin-top: var(--s-5); flex-wrap: wrap; }
+.cx-detail__paper { margin-top: var(--s-4); }
+
+.cx-tier {
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--kincha-deep);
+}
+.cx-hab {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+}
+.cx-prose {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-3);
+  text-wrap: pretty;
+}
+.cx-prose--lead { color: var(--ink); font-size: var(--fs-body-l); }
+.cx-note {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-faint);
+}
+
+.cx-block { margin-top: var(--s-4); }
+.cx-block__label {
+  display: block;
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: var(--s-1);
+}
+
+/* A codex entry you have not earned yet: sealed, not paywalled. */
+.cx-sealed {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  margin-top: var(--s-3);
+}
+.cx-sealed__seal { color: var(--ink-faint); flex: 0 0 auto; margin-top: 2px; }
+.cx-sealed__head {
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+  margin: 0;
+}
+.cx-sealed__body {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  color: var(--ink-faint);
+  margin: 2px 0 0;
+}
+
+.cx-lock { margin-top: var(--s-4); padding: var(--s-4); border-radius: var(--r-md); background: var(--paper-2); }
+.cx-lock__head {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-title);
+  color: var(--ink);
+  margin: 0 0 var(--s-1);
+}
+.cx-lock__why { font-family: var(--font-text); font-size: var(--fs-body); color: var(--ink-soft); margin: 0; }
+.cx-lock__purse {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-faint);
+}
+.cx-lock__buy { margin-top: var(--s-3); }
+
+.cx-record {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+  margin: var(--s-3) 0 0;
+}
+
+/* The fold sequence, as a row of little chits. */
+.cx-rail { margin-top: var(--s-4); }
+.cx-rail__name {
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.cx-rail__step { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-top: var(--s-2); list-style: none; padding: 0; }
+.cx-rail__chit {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: var(--paper-3);
+  box-shadow: inset 0 0 0 1.5px var(--ink-hair);
+}
+
+.cx-page { padding: var(--s-4); }
+.cx-page__head { text-align: center; margin-bottom: var(--s-3); }
