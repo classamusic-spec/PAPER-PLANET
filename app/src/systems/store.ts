@@ -55,6 +55,7 @@ import {
   claimMasteryMilestone,
   readPractice,
   recordPractice as recordPracticeIn,
+  type PracticeKind,
   type PracticeLog,
   collectionSize,
   collectionSummary,
@@ -104,7 +105,7 @@ import {
 
 import { applySettings, browserEnv, defaultSettings, type SettingsEnv, watchSystemTheme } from './settings'
 import { systemRng, clamp01, type Rng } from './rand'
-import { EMPTY_CONTENT, buildContentIndex, type ContentIndex, type SpeciesLike, type WashiLike, type BiomeLike } from './types'
+import { EMPTY_CONTENT, buildContentIndex, type Away, type ContentIndex, type SpeciesLike, type WashiLike, type BiomeLike } from './types'
 
 /* ═══════════════════════════════════════════════════════════════════════════
    STATE
@@ -172,6 +173,16 @@ export interface GameState {
   today: string
   lastOutcome: FoldOutcome | null
   notice: Notice | null
+  /**
+   * How long the player was gone, measured once when the save was loaded.
+   *
+   * `decayBond` has always computed this and hydrate() has always thrown it
+   * away, so no screen could say "you were gone four days" — the one fact that
+   * makes coming back feel like coming back to something. Held here until a
+   * screen has shown it, then dismissed, so it does not greet you again every
+   * time you navigate home.
+   */
+  away: Away | null
   purchasePending: string | null
   skus: Sku[]
 }
@@ -219,7 +230,9 @@ export interface GameActions {
   /* flags & notices */
   markSeen(flag: FlagName): void
   /** Record a finished Practice Sheet. Pays nothing; it only keeps the record. */
-  recordPractice(score: number): PracticeLog
+  recordPractice(score: number, kind?: PracticeKind): PracticeLog
+  /** Mark the absence greeting as shown, so it greets you once. */
+  dismissAway(): void
   dismissNotice(): void
 
   /* save management */
@@ -348,6 +361,7 @@ export function createGameStore(options: GameStoreOptions = {}): StoreApi<GameSt
       today: localDateKey(now()),
       lastOutcome: null,
       notice: null,
+      away: null,
       purchasePending: null,
       skus: [],
 
@@ -417,6 +431,10 @@ export function createGameStore(options: GameStoreOptions = {}): StoreApi<GameSt
           repairs: [...result.repairs, ...day.repairs],
           today,
           notice,
+          // A first run is not an absence: decayBond has no checkpoint to
+          // measure from, and greeting a new player with "welcome back" is a
+          // lie. It reports 0 days in that case, which this respects.
+          away: decay.daysAway > 0 ? { days: decay.daysAway, lost: decay.lost } : null,
         })
 
         // Write the migrated save through immediately, then retire the old keys.
@@ -861,11 +879,15 @@ export function createGameStore(options: GameStoreOptions = {}): StoreApi<GameSt
         set({ seen: markSeenIn(get().seen, flag) })
       },
 
-      recordPractice(score) {
+      recordPractice(score, kind) {
         const state = get()
-        const out = recordPracticeIn(state.seen, state.today, score)
+        const out = recordPracticeIn(state.seen, state.today, score, kind)
         set({ seen: out.seen })
         return out.log
+      },
+
+      dismissAway() {
+        if (get().away !== null) set({ away: null })
       },
 
       dismissNotice() {
@@ -1013,6 +1035,9 @@ export const useAtelier = (): boolean => useGame((s) => isAtelierMember(s.entitl
 export const useStorefrontOpen = (): boolean => useGame((s) => isStorefrontOpen(s))
 export const useHasSeen = (flag: FlagName): boolean => useGame((s) => hasSeenIn(s.seen, flag))
 
+/** What the player missed. Null once shown, or when they were never away. */
+export const useAway = (): Away | null => useGame((s) => s.away)
+
 /**
  * The Practice Sheet's record: best ever, days in a row, done today.
  *
@@ -1020,10 +1045,10 @@ export const useHasSeen = (flag: FlagName): boolean => useGame((s) => hasSeenIn(
  * selector that returns a new object every call never compares equal — the
  * store re-renders, re-derives, and re-renders again until React gives up.
  */
-export const usePractice = (): PracticeLog => {
+export const usePractice = (kind: PracticeKind = 'folds'): PracticeLog => {
   const seen = useGame((s) => s.seen)
   const today = useGame((s) => s.today)
-  return useMemo(() => readPractice(seen, today), [seen, today])
+  return useMemo(() => readPractice(seen, today, kind), [seen, today, kind])
 }
 export const useFoldCount = (speciesId: string): number => useGame((s) => s.folds[speciesId] ?? 0)
 export const useMastery = (speciesId: string): MasteryTier => useGame((s) => masteryFor(s.folds[speciesId] ?? 0))
@@ -1093,7 +1118,8 @@ export const actions: GameActions = {
   setVolume: (b, v) => gameStore().getState().setVolume(b, v),
   resetSettings: () => gameStore().getState().resetSettings(),
   markSeen: (f) => gameStore().getState().markSeen(f),
-  recordPractice: (s) => gameStore().getState().recordPractice(s),
+  recordPractice: (s, k) => gameStore().getState().recordPractice(s, k),
+  dismissAway: () => gameStore().getState().dismissAway(),
   dismissNotice: () => gameStore().getState().dismissNotice(),
   exportSaveJson: () => gameStore().getState().exportSaveJson(),
   importSaveJson: (j) => gameStore().getState().importSaveJson(j),

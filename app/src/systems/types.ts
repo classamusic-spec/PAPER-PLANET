@@ -84,3 +84,15 @@ export function buildContentIndex(input: {
     washiIds: new Set(washi.map((w) => w.id)),
   }
 }
+
+/**
+ * What happened while the player was away, measured once at load.
+ *
+ * `days` is whole days since the last visit — 0, and therefore never reported,
+ * on a first run or a same-day return. `lost` is how much bond every Kami above
+ * the floor drifted down, which is 0 inside the three-day grace period.
+ */
+export interface Away {
+  days: number
+  lost: number
+}

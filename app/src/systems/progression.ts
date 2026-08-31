@@ -518,6 +518,28 @@ export function collectionSummary(
    better at the thing, and BRAND section 12 keeps it that way.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * Which practice a record belongs to.
+ *
+ * Folding accuracy and reading notation are different skills and deserve
+ * separate records — being able to place a corner does not mean you can read a
+ * dash-dot line, and merging them would let one hide the other.
+ */
+export type PracticeKind = 'folds' | 'notation'
+
+/**
+ * `folds` keeps the unsuffixed keys it has always used, so a save written
+ * before this split keeps its record instead of silently resetting to zero.
+ */
+function practiceKeys(kind: PracticeKind): { best: string; day: string; streak: string } {
+  const suffix = kind === 'folds' ? '' : `/${kind}`
+  return {
+    best: SYS_KEY.drillBest + suffix,
+    day: SYS_KEY.drillDay + suffix,
+    streak: SYS_KEY.drillStreak + suffix,
+  }
+}
+
 export interface PracticeLog {
   /** Best sheet average ever, 0..1. */
   best: number
@@ -529,11 +551,16 @@ export interface PracticeLog {
   doneToday: boolean
 }
 
-export function readPractice(seen: readonly string[], dateKey: string): PracticeLog {
-  const lastDay = readFlag(seen, SYS_KEY.drillDay)
+export function readPractice(
+  seen: readonly string[],
+  dateKey: string,
+  kind: PracticeKind = 'folds',
+): PracticeLog {
+  const key = practiceKeys(kind)
+  const lastDay = readFlag(seen, key.day)
   return {
-    best: clamp01(readFlagNumber(seen, SYS_KEY.drillBest, 0)),
-    streak: Math.max(0, Math.round(readFlagNumber(seen, SYS_KEY.drillStreak, 0))),
+    best: clamp01(readFlagNumber(seen, key.best, 0)),
+    streak: Math.max(0, Math.round(readFlagNumber(seen, key.streak, 0))),
     lastDay,
     doneToday: lastDay === dateKey,
   }
@@ -551,20 +578,22 @@ export function recordPractice(
   seen: readonly string[],
   dateKey: string,
   score: number,
+  kind: PracticeKind = 'folds',
 ): { seen: string[]; log: PracticeLog } {
-  const before = readPractice(seen, dateKey)
+  const key = practiceKeys(kind)
+  const before = readPractice(seen, dateKey, kind)
   const clean = clamp01(Number.isFinite(score) ? score : 0)
 
   let next = seen as string[]
   const best = Math.max(before.best, clean)
-  if (best !== before.best) next = writeFlag(next, SYS_KEY.drillBest, best.toFixed(4))
+  if (best !== before.best) next = writeFlag(next, key.best, best.toFixed(4))
 
   let streak = before.streak
   if (!before.doneToday) {
     const gap = before.lastDay ? daysBetween(before.lastDay, dateKey) : Infinity
     streak = gap === 1 ? before.streak + 1 : 1
-    next = writeFlag(next, SYS_KEY.drillDay, dateKey)
-    next = writeFlag(next, SYS_KEY.drillStreak, streak)
+    next = writeFlag(next, key.day, dateKey)
+    next = writeFlag(next, key.streak, streak)
   }
 
   return { seen: next, log: { best, streak, lastDay: dateKey, doneToday: true } }

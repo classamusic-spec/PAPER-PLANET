@@ -50,6 +50,8 @@ import {
   evaluateUnlock,
   masteryFor,
   masteryProgress,
+  readPractice,
+  recordPractice,
   rollGolden,
   sparkleChance,
   tendKami,
@@ -57,6 +59,7 @@ import {
 } from './progression'
 
 import { claimDailyFold, dailySpeciesFor, daysBetween, localDateKey, openDay, shiftDateKey } from './daily'
+import { SYS_KEY, writeFlag } from './save'
 
 import {
   CATALOG,
@@ -1105,6 +1108,71 @@ section('20 · settings')
 /* ═══════════════════════════════════════════════════════════════════════════
    RESULT
    ═══════════════════════════════════════════════════════════════════════════ */
+
+section('practice ledger — two skills, two records')
+{
+  const day = '2026-08-31'
+
+  // Folding and reading notation are separate skills. One must not stand in
+  // for the other, or a player who never reads a diagram looks fluent.
+  let seen: string[] = []
+  seen = recordPractice(seen, day, 0.9, 'folds').seen
+  eq('a fold sheet sets the fold record', Math.round(readPractice(seen, day, 'folds').best * 100), 90)
+  eq('and leaves notation untouched', readPractice(seen, day, 'notation').best, 0)
+  eq('notation has no streak yet', readPractice(seen, day, 'notation').streak, 0)
+  ok('notation is not marked done by folding', !readPractice(seen, day, 'notation').doneToday)
+
+  seen = recordPractice(seen, day, 0.4, 'notation').seen
+  eq('a notation quiz sets its own record', Math.round(readPractice(seen, day, 'notation').best * 100), 40)
+  eq('and does not overwrite the fold record', Math.round(readPractice(seen, day, 'folds').best * 100), 90)
+
+  // The default is 'folds', so every existing call site keeps its meaning.
+  eq('the default kind is folds', readPractice(seen, day).best, readPractice(seen, day, 'folds').best)
+
+  // A save written before the split must keep its record rather than reset.
+  const legacy = writeFlag(writeFlag([], SYS_KEY.drillBest, '0.7700'), SYS_KEY.drillStreak, 4)
+  eq('a pre-split save keeps its best', Math.round(readPractice(legacy, day, 'folds').best * 100), 77)
+  eq('and its streak', readPractice(legacy, day, 'folds').streak, 4)
+  eq('while notation starts clean', readPractice(legacy, day, 'notation').streak, 0)
+
+  // The two streaks advance independently.
+  let both: string[] = []
+  both = recordPractice(both, '2026-09-01', 0.5, 'folds').seen
+  both = recordPractice(both, '2026-09-02', 0.5, 'folds').seen
+  both = recordPractice(both, '2026-09-02', 0.5, 'notation').seen
+  eq('folds is on two days', readPractice(both, '2026-09-02', 'folds').streak, 2)
+  eq('notation is on one', readPractice(both, '2026-09-02', 'notation').streak, 1)
+}
+
+section('coming back — absence reaches the screen')
+{
+  // decayBond has always computed daysAway and hydrate() always discarded it,
+  // so nothing could say "you were gone four days". These guard the plumbing.
+  const kami: KamiInstance[] = [
+    { uid: 'a', speciesId: 'crane', washiId: 'kozo', nickname: null, foldedAt: 0,
+      pos: [0.5, 0.5], bond: 80, golden: false, quality: 0.8 },
+  ]
+  const DAY = 86_400_000
+  const t0 = 1_800_000_000_000
+
+  const first = decayBond(kami, [], t0)
+  eq('a first run reports no absence — there is no checkpoint to measure from', first.daysAway, 0)
+
+  const marked = writeFlag([], SYS_KEY.bondCheckedAt, t0)
+  eq('coming back the same day is not an absence', decayBond(kami, marked, t0 + 1000).daysAway, 0)
+
+  const twoDays = decayBond(kami, marked, t0 + 2 * DAY)
+  eq('two days away is two days', twoDays.daysAway, 2)
+  eq('and inside the grace period nothing is lost', twoDays.lost, 0)
+
+  const tenDays = decayBond(kami, marked, t0 + 10 * DAY)
+  eq('ten days away is ten days', tenDays.daysAway, 10)
+  ok('and past the grace period some bond drifts down', tenDays.lost > 0, `lost ${tenDays.lost}`)
+  ok('but never to nothing', tenDays.kami[0].bond > 0, `bond ${tenDays.kami[0].bond}`)
+
+  // A clock dragged backwards must not manufacture an absence.
+  eq('a clock moved backwards reports nothing', decayBond(kami, marked, t0 - 5 * DAY).daysAway, 0)
+}
 
 console.log(`\n${'-'.repeat(72)}`)
 if (failures.length === 0) {
