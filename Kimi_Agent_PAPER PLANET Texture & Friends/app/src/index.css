@@ -1,0 +1,494 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============ PAPER PLANET design system ============ */
+:root {
+  --paper: #f7ede2;
+  --paper-deep: #efe0cd;
+  --ink: #563e79;
+  --ink-soft: #7a639b;
+  --coral: #f28482;
+  --coral-soft: #f5cac3;
+  --sage: #84a59d;
+  --sage-deep: #5f8a80;
+  --sun: #ffce80;
+  --sun-deep: #f6a54f;
+  --sky: #aed9e0;
+  --sky-deep: #7fbecd;
+  --sticker: #fffdf7;
+
+  --springy: cubic-bezier(0.34, 1.65, 0.44, 1);
+  --springy-big: cubic-bezier(0.28, 2.2, 0.5, 0.9);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overscroll-behavior: none;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Nunito', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
+  overflow: hidden;
+}
+
+.font-display {
+  font-family: 'Londrina Solid', 'Nunito', sans-serif;
+  letter-spacing: 0.01em;
+}
+
+/* ---- paper grain overlay (dual-layer SVG noise: fine grain + fibers) ---- */
+.paper-grain {
+  position: relative;
+}
+.paper-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.55 0 0 0 0 0.48 0 0 0 0 0.4 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.012 0.09' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.5 0 0 0 0 0.43 0 0 0 0 0.34 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='320' height='320' filter='url(%23f)'/%3E%3C/svg%3E");
+}
+
+/* soft vignette to give screens a diorama-box feel */
+.vignette::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  background: radial-gradient(ellipse 120% 105% at 50% 42%, transparent 62%, rgba(86, 62, 121, 0.1) 100%);
+}
+
+/* ---- 3D push button (hard offset shadow, presses flat) ---- */
+.push-btn {
+  --btn-bg: var(--coral);
+  --btn-shadow: var(--ink);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: 'Londrina Solid', sans-serif;
+  background: var(--btn-bg);
+  color: var(--sticker);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  padding: 0.65rem 1.6rem;
+  cursor: pointer;
+  transform: translate(-5px, -5px);
+  box-shadow: 5px 5px 0 0 var(--ink);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    filter 0.15s ease;
+  text-shadow: 0 2px 0 rgba(86, 62, 121, 0.25);
+}
+.push-btn:hover {
+  filter: brightness(1.05);
+}
+.push-btn:active,
+.push-btn.pressed {
+  transform: translate(0, 0);
+  box-shadow: 0 0 0 0 var(--ink);
+}
+.push-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  transform: translate(-5px, -5px);
+  box-shadow: 5px 5px 0 0 var(--ink);
+}
+.push-btn.sage {
+  --btn-bg: var(--sage);
+}
+.push-btn.sun {
+  --btn-bg: var(--sun);
+  color: var(--ink);
+  text-shadow: none;
+}
+.push-btn.sky {
+  --btn-bg: var(--sky-deep);
+}
+.push-btn.ghost {
+  --btn-bg: var(--sticker);
+  color: var(--ink);
+  text-shadow: none;
+}
+.push-btn.sm {
+  padding: 0.35rem 1rem;
+  border-radius: 14px;
+  font-size: 0.95rem;
+  transform: translate(-4px, -4px);
+  box-shadow: 4px 4px 0 0 var(--ink);
+}
+.push-btn.sm:active {
+  transform: translate(0, 0);
+  box-shadow: 0 0 0 0 var(--ink);
+}
+
+/* ---- keyframes ---- */
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(var(--rot, 0deg));
+  }
+  50% {
+    transform: translate(var(--dx, 12px), var(--dy, -18px)) rotate(calc(var(--rot, 0deg) + 6deg));
+  }
+}
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(2deg);
+  }
+}
+@keyframes hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  12% {
+    transform: translateY(2px) scale(1.08, 0.9);
+  }
+  40% {
+    transform: translateY(-26px) scale(0.94, 1.08);
+  }
+  60% {
+    transform: translateY(0) scale(1.05, 0.94);
+  }
+  75% {
+    transform: translateY(-4px) scale(1, 1);
+  }
+}
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg) translateY(-4px);
+  }
+}
+@keyframes flypath {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  25% {
+    transform: translate(38px, -30px) rotate(6deg);
+  }
+  50% {
+    transform: translate(8px, -56px) rotate(-4deg);
+  }
+  75% {
+    transform: translate(-32px, -24px) rotate(-8deg);
+  }
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+}
+@keyframes flutter {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(-8deg) scaleX(1);
+  }
+  25% {
+    transform: translate(14px, -22px) rotate(4deg) scaleX(0.82);
+  }
+  50% {
+    transform: translate(30px, -6px) rotate(10deg) scaleX(1);
+  }
+  75% {
+    transform: translate(12px, 10px) rotate(-2deg) scaleX(0.86);
+  }
+}
+@keyframes walkx {
+  0%,
+  100% {
+    transform: translateX(0) scaleX(1);
+  }
+  45% {
+    transform: translateX(46px) scaleX(1);
+  }
+  50% {
+    transform: translateX(46px) scaleX(-1);
+  }
+  95% {
+    transform: translateX(0) scaleX(-1);
+  }
+}
+@keyframes swim {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(-4deg) scaleX(1);
+  }
+  35% {
+    transform: translate(-22px, -5px) rotate(3deg) scaleX(0.95);
+  }
+  55% {
+    transform: translate(-30px, 0) rotate(0deg) scaleX(-1);
+  }
+  85% {
+    transform: translate(-8px, 4px) rotate(-3deg) scaleX(-0.95);
+  }
+}
+@keyframes sunspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes clouddrift {
+  from {
+    transform: translateX(-15vw);
+  }
+  to {
+    transform: translateX(115vw);
+  }
+}
+@keyframes pop-in {
+  0% {
+    transform: scale(0) rotate(-14deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.18) rotate(4deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+@keyframes trick {
+  0% {
+    transform: scale(1) rotate(0);
+  }
+  30% {
+    transform: scale(1.25, 0.8) rotate(-8deg);
+  }
+  60% {
+    transform: scale(0.85, 1.3) rotate(8deg) translateY(-18px);
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+@keyframes dashmarch {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+@keyframes hintslide {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translate(var(--hx, 40px), var(--hy, 40px));
+    opacity: 0.4;
+  }
+}
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(-3deg);
+  }
+  50% {
+    transform: rotate(3deg);
+  }
+}
+@keyframes rise-fade {
+  0% {
+    transform: translateY(14px) scale(0.9);
+    opacity: 0;
+  }
+  15% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-26px) scale(0.95);
+    opacity: 0;
+  }
+}
+@keyframes banner-in {
+  0% {
+    transform: translateY(40px) scale(0.7) rotate(-4deg);
+    opacity: 0;
+  }
+  60% {
+    transform: translateY(-6px) scale(1.06) rotate(2deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+@keyframes confetti-fall {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--cx, 0px), var(--cy, 70vh)) rotate(var(--cr, 540deg));
+    opacity: 0;
+  }
+}
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+@keyframes shimmer-slide {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes firefly {
+  0%,
+  100% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  20%,
+  70% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(var(--fx, 30px), var(--fy, -40px));
+  }
+}
+@keyframes berry-drop {
+  0% {
+    transform: translateY(-70px) scale(0.4) rotate(-30deg);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  80% {
+    transform: translateY(6px) scale(1.05) rotate(10deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(10px) scale(0.2);
+    opacity: 0;
+  }
+}
+@keyframes heart-pop {
+  0% {
+    transform: translateY(0) scale(0.3);
+    opacity: 0;
+  }
+  25% {
+    transform: translateY(-16px) scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-48px) scale(0.9);
+    opacity: 0;
+  }
+}
+@keyframes hang-sway {
+  0%,
+  100% {
+    transform: rotate(180deg) translateY(0);
+  }
+  50% {
+    transform: rotate(180deg) translateY(-5px);
+  }
+}
+.sparkle-tag {
+  animation: shimmer-slide 2.4s linear infinite;
+}
+.anim-hang {
+  animation: hang-sway var(--dur, 4s) ease-in-out infinite;
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+.anim-drift {
+  animation: drift var(--dur, 7s) ease-in-out infinite;
+}
+.anim-bob {
+  animation: bob var(--dur, 3.4s) ease-in-out infinite;
+}
+.anim-hop {
+  animation: hop var(--dur, 2.6s) ease-in-out infinite;
+}
+.anim-sway {
+  animation: sway var(--dur, 3s) ease-in-out infinite;
+}
+.anim-fly {
+  animation: flypath var(--dur, 9s) ease-in-out infinite;
+}
+.anim-flutter {
+  animation: flutter var(--dur, 6s) ease-in-out infinite;
+}
+.anim-walk {
+  animation: walkx var(--dur, 11s) ease-in-out infinite;
+}
+.anim-swim {
+  animation: swim var(--dur, 7s) ease-in-out infinite;
+}
+.anim-trick {
+  animation: trick 0.9s var(--springy) 1;
+}
+.anim-wiggle {
+  animation: wiggle 1.6s ease-in-out infinite;
+}
+
+.fold-line {
+  stroke-dasharray: 10 8;
+  animation: dashmarch 1.1s linear infinite;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
