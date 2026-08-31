@@ -5,3 +5,7 @@ dist
 *.local
 .DS_Store
 tsconfig.check.json
+.audio-qa.mjs
+tools/node_modules
+.shot.mjs
+docs/shots
