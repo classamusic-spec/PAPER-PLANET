@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Paper UI kit — gallery</title>
+    <link rel="preload" href="./fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./fonts/nunito-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <script>
+      /* ?theme=night · ?ink=high · ?motion=reduce — so screenshots need no clicking */
+      ;(function () {
+        var q = new URLSearchParams(location.search)
+        var root = document.documentElement
+        root.setAttribute('data-theme', q.get('theme') === 'night' ? 'night' : 'day')
+        if (q.get('ink') === 'high') root.setAttribute('data-high-ink', 'true')
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/ui/__gallery-entry.tsx"></script>
+  </body>
+</html>
