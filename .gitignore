@@ -2,6 +2,7 @@
 .DS_Store
 .allscreens.mjs
 .audio-qa.mjs
+.audit.mjs
 .coach-gestures.mjs
 .coach-shots.mjs
 .coach-test.mjs
@@ -14,9 +15,12 @@
 .live-test.mjs
 .mix-live.mjs
 .mix-render.mjs
+.probe*.mjs
+.retention-shots.mjs
 .reveal-shot.mjs
 .seed.mjs
 .shoot-share.mjs
+.shoptabs.mjs
 .shot.mjs
 .studio-test.mjs
 .vercel
