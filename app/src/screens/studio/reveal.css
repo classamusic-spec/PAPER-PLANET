@@ -1,0 +1,241 @@
+/* PAPER PLANET — the reveal. The model stays live; the card is a museum label. */
+
+.pp-reveal {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 0.9fr) auto;
+  overflow: hidden;
+  padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
+}
+
+.pp-reveal__desk {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 34%,
+    var(--paper-0) 0%,
+    var(--paper-1) 44%,
+    var(--paper-2) 76%,
+    var(--paper-3) 100%
+  );
+}
+
+.pp-reveal__stage,
+.pp-reveal__card {
+  position: relative;
+  z-index: 1;
+}
+
+.pp-reveal__stage {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  animation: pp-reveal-rise var(--t-page) var(--ease-alive) both;
+}
+.pp-reveal__stage .pp-fold-canvas {
+  width: min(86vw, 38vh);
+}
+
+@keyframes pp-reveal-rise {
+  from { transform: scale(0.72) translateY(18px); opacity: 0; }
+  60% { transform: scale(1.05) translateY(-6px); opacity: 1; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.pp-reveal__card {
+  padding: 0 var(--s-3) var(--s-3);
+  animation: pp-reveal-card var(--t-slow) var(--ease-settle) 240ms both;
+}
+@keyframes pp-reveal-card {
+  from { transform: translateY(26px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.pp-reveal__inner {
+  padding: var(--s-5) var(--s-5) var(--s-4);
+  text-align: center;
+  max-width: var(--content-max);
+  margin: 0 auto;
+}
+
+.pp-reveal__eyebrow {
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--kincha-deep);
+  margin: 0 0 var(--s-2);
+}
+
+.pp-reveal__name {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-display-l);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0;
+  text-wrap: balance;
+}
+
+.pp-reveal__binomial {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--fs-body);
+  color: var(--ink-faint);
+  margin: var(--s-1) 0 0;
+}
+
+.pp-reveal__rename {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  min-height: var(--touch-min);
+  padding: 0 var(--s-3);
+  margin-top: var(--s-1);
+  font-family: var(--font-text);
+  font-weight: 700;
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.pp-reveal__rename:hover { color: var(--ink); }
+
+.pp-reveal__nameform {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+}
+.pp-reveal__namelabel {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  color: var(--ink);
+}
+.pp-reveal__nameinput {
+  font-family: var(--font-display);
+  font-size: var(--fs-display-m);
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+  background: var(--paper-2);
+  border: none;
+  border-bottom: 2px solid var(--ink-hair);
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+  padding: var(--s-2) var(--s-3);
+  min-height: var(--touch-min);
+  width: min(100%, 320px);
+}
+.pp-reveal__nameinput:focus-visible {
+  outline: 2px solid var(--beni);
+  outline-offset: 2px;
+}
+
+.pp-reveal__craft {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+  margin: var(--s-3) 0 0;
+}
+
+.pp-reveal__rewards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s-2);
+  list-style: none;
+  margin: var(--s-4) 0 0;
+  padding: 0;
+}
+.pp-reveal__rewards li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  background: var(--paper-2);
+  border-radius: var(--r-pill);
+  padding: var(--s-2) var(--s-3);
+  font-variant-numeric: tabular-nums;
+  animation: pp-reward-in var(--t-base) var(--ease-alive) both;
+}
+.pp-reveal__rewards li:nth-child(2) { animation-delay: 90ms; }
+.pp-reveal__rewards li:nth-child(3) { animation-delay: 180ms; }
+.pp-reveal__rewards li.is-mastery { background: var(--kincha-soft); color: var(--kincha-deep); }
+.pp-reveal__rewards li.is-unlock { background: var(--matcha-soft); color: var(--matcha-deep); }
+
+@keyframes pp-reward-in {
+  from { transform: scale(0.7); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.pp-reveal__fact {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: var(--s-4) auto 0;
+  max-width: 44ch;
+  text-wrap: pretty;
+}
+
+.pp-reveal__actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-3);
+  margin-top: var(--s-5);
+  flex-wrap: wrap;
+}
+
+/* Tablet: the label sits beside the model rather than beneath it. */
+@media (min-width: 900px) and (orientation: landscape) {
+  .pp-reveal {
+    grid-template-rows: 1fr;
+    grid-template-columns: 1.1fr 0.9fr;
+    align-items: center;
+  }
+  .pp-reveal__stage .pp-fold-canvas { width: min(42vw, 62vh); }
+  .pp-reveal__card { padding: var(--s-6); }
+  .pp-reveal__inner { text-align: left; }
+  .pp-reveal__rewards, .pp-reveal__actions { justify-content: flex-start; }
+  .pp-reveal__fact { margin-left: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-reveal__stage,
+  .pp-reveal__card,
+  .pp-reveal__rewards li {
+    animation-duration: var(--t-quick);
+  }
+  @keyframes pp-reveal-rise { from { opacity: 0; transform: none; } to { opacity: 1; transform: none; } }
+}
+
+/* Tablet portrait: the desk is tall, so give the model the room and keep the
+   label a readable column rather than letting it span the full width. */
+@media (min-width: 768px) and (orientation: portrait) {
+  .pp-reveal {
+    grid-template-rows: minmax(0, 1.05fr) auto;
+    place-items: center;
+  }
+  .pp-reveal__stage .pp-fold-canvas {
+    width: min(66vw, 46vh);
+  }
+  .pp-reveal__card {
+    width: min(100%, 640px);
+    padding-bottom: var(--s-8);
+  }
+  .pp-reveal__inner {
+    padding: var(--s-6) var(--s-6) var(--s-5);
+  }
+}

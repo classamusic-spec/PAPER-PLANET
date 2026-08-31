@@ -6,10 +6,9 @@ import type {
   FoldStep,
   GestureKind,
   PaperMaterial,
-  RenderFrame,
   Vec2,
 } from '../../contracts'
-import { Fold3D } from '../../engine'
+import { Fold3D, type PaperFrame } from '../../engine'
 import { audio, haptics } from '../../audio'
 import {
   createGestureRecogniser,
@@ -50,6 +49,12 @@ export interface FoldCanvasProps {
   reducedMotion: boolean
   /** True once every step is committed — switches to idle breathing. */
   complete: boolean
+  /**
+   * How much of the viewport the model should fill, 0..1. The engine frames
+   * yaw-invariantly (reserving room for a full spin), which costs a lot on a
+   * long model like a finished crane — the reveal pushes in.
+   */
+  fill?: number
   /** 0..1 while a step is in flight. */
   onProgress?: (t: number) => void
   /** Fired once per completed step, with how cleanly it was performed (0..1). */
@@ -70,6 +75,36 @@ export interface FoldCanvasProps {
 interface StepRef {
   hint: { from: Vec2; to: Vec2 } | null
   axisLen: number
+  /**
+   * True when the authored hint collapsed on screen and we synthesised one
+   * across the crease instead. Progress then ignores drag *direction* — the
+   * player folds by crossing the line either way, which is forgiving and is
+   * what the gesture means anyway.
+   */
+  synthesised: boolean
+}
+
+/** The shortest hint we will trust. Below this, screen anchors have collapsed. */
+const MIN_HINT_PX = 26
+
+/**
+ * Build a usable hint across the crease when the authored one has collapsed.
+ *
+ * Prior folds can carry two material anchors onto the same point — the crane's
+ * mountain fold takes corners (1000,0) and (0,1000), which the two valleys
+ * before it bring together. The fold is still perfectly performable: you drag
+ * across the crease. So we synthesise exactly that.
+ */
+function acrossCrease(axis: { from: Vec2; to: Vec2 }): { from: Vec2; to: Vec2 } {
+  const ax = axis.to[0] - axis.from[0]
+  const ay = axis.to[1] - axis.from[1]
+  const len = Math.hypot(ax, ay) || 1
+  const mx = (axis.from[0] + axis.to[0]) / 2
+  const my = (axis.from[1] + axis.to[1]) / 2
+  const nx = -ay / len
+  const ny = ax / len
+  const reach = Math.max(MIN_HINT_PX, len * 0.34)
+  return { from: [mx - nx * reach * 0.5, my - ny * reach * 0.5], to: [mx + nx * reach * 0.5, my + ny * reach * 0.5] }
 }
 
 /** Which gesture a step wants, and how to score progress for it. */
@@ -89,8 +124,18 @@ function progressFor(step: FoldStep, s: GestureState, ref: StepRef): number {
     case 'swipe':
     case 'drag':
     case 'tap':
-    default:
-      return hint ? foldProgress(s, hint) : 0
+    default: {
+      if (!hint) return 0
+      if (!ref.synthesised) return foldProgress(s, hint)
+      // A synthesised hint already points across the crease, so progress is
+      // travel ALONG it — measured unsigned, because crossing the line counts
+      // whichever way the finger came from.
+      const hx = hint.to[0] - hint.from[0]
+      const hy = hint.to[1] - hint.from[1]
+      const len2 = hx * hx + hy * hy
+      if (len2 < 1) return 0
+      return Math.max(0, Math.min(1, (Math.abs(s.dx * hx + s.dy * hy) / len2) * 1.12))
+    }
   }
 }
 
@@ -123,6 +168,7 @@ export default function FoldCanvas({
   guides,
   reducedMotion,
   complete,
+  fill,
   onProgress,
   onStepComplete,
   onRub,
@@ -132,7 +178,7 @@ export default function FoldCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const engineRef = useRef<Fold3D | null>(null)
   const gestureRef = useRef<GestureRecogniser | null>(null)
-  const frameRef = useRef<RenderFrame | null>(null)
+  const frameRef = useRef<PaperFrame | null>(null)
   const rafRef = useRef(0)
 
   /* Live values the rAF loop reads without re-subscribing. */
@@ -145,12 +191,14 @@ export default function FoldCanvas({
   const orbitingRef = useRef(false)
   const committedRef = useRef(false)
   const dprRef = useRef(1)
-  const stepRefRef = useRef<StepRef>({ hint: null, axisLen: 200 })
+  const fillRef = useRef(fill ?? 0.82)
+  const stepRefRef = useRef<StepRef>({ hint: null, axisLen: 200, synthesised: false })
 
   stepRef.current = stepIndex
   completeRef.current = complete
   guidesRef.current = guides
   motionRef.current = reducedMotion
+  fillRef.current = fill ?? 0.82
 
   const step: FoldStep | undefined = recipe.steps[stepIndex]
 
@@ -204,10 +252,9 @@ export default function FoldCanvas({
     canvas.height = Math.round(h * dpr)
     canvas.style.width = `${w}px`
     canvas.style.height = `${h}px`
-    engine.fit(w, h)
-    // fit() frames conservatively so a fold in flight never clips; the sheet at
-    // rest only fills ~56% of that. Push in so the paper is the subject.
-    engine.setCamera({ zoom: 1.12 })
+    // fit() solves for the eye distance by measuring the real projection, and
+    // frames yaw-invariantly so orbiting never needs a re-fit.
+    engine.fit(w, h, fillRef.current)
   }, [])
 
   useEffect(() => {
@@ -222,6 +269,10 @@ export default function FoldCanvas({
       window.removeEventListener('orientationchange', resize)
     }
   }, [resize])
+
+  useEffect(() => {
+    resize()
+  }, [fill, resize])
 
   useEffect(() => {
     const engine = engineRef.current
@@ -288,11 +339,24 @@ export default function FoldCanvas({
         settleRef.current = null
         // Freeze the anchors now, before the paper starts moving under them.
         const f = frameRef.current
+        const axis = f?.axis
+          ? { from: [...f.axis.from] as Vec2, to: [...f.axis.to] as Vec2 }
+          : null
+        let hint = f?.hint
+          ? { from: [...f.hint.from] as Vec2, to: [...f.hint.to] as Vec2 }
+          : null
+        let synthesised = false
+        const span = hint
+          ? Math.hypot(hint.to[0] - hint.from[0], hint.to[1] - hint.from[1])
+          : 0
+        if (span < MIN_HINT_PX && axis) {
+          hint = acrossCrease(axis)
+          synthesised = true
+        }
         stepRefRef.current = {
-          hint: f?.hint ? { from: [...f.hint.from] as Vec2, to: [...f.hint.to] as Vec2 } : null,
-          axisLen: f?.axis
-            ? Math.hypot(f.axis.to[0] - f.axis.from[0], f.axis.to[1] - f.axis.from[1])
-            : 200,
+          hint,
+          axisLen: axis ? Math.hypot(axis.to[0] - axis.from[0], axis.to[1] - axis.from[1]) : 200,
+          synthesised,
         }
       },
       onClassify: (kind: GestureKind) => {
@@ -422,6 +486,26 @@ export default function FoldCanvas({
         }
       }
 
+      /* A press is held, not moved: with the finger still there are no pointer
+         events at all, so this is the only place its progress can advance. */
+      const cur = recipe.steps[stepRef.current]
+      if (
+        cur &&
+        cur.gesture === 'hold' &&
+        !completeRef.current &&
+        !committedRef.current &&
+        !settleRef.current
+      ) {
+        const gs = recRef.current?.state()
+        if (gs?.held) {
+          const t = holdProgress(gs, 900)
+          progressRef.current = t
+          engine.setProgress(t)
+          onProgress?.(t)
+          if (t >= 0.999) commit(0.9)
+        }
+      }
+
       if (completeRef.current && !motionRef.current) {
         engine.setBreath((now / 4200) % 1)
       }
@@ -429,14 +513,14 @@ export default function FoldCanvas({
       const frame = engine.render()
       frameRef.current = frame
       if (import.meta.env.DEV) {
-        ;(window as unknown as { __ppFrame?: RenderFrame }).__ppFrame = frame
+        ;(window as unknown as { __ppFrame?: PaperFrame }).__ppFrame = frame
       }
       paint(ctx, frame, dprRef.current, guidesRef.current && !completeRef.current)
     }
 
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [commit, onProgress])
+  }, [commit, onProgress, recipe])
 
   useImperativeHandle(
     handleRef,
@@ -507,11 +591,6 @@ function paperGrain(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   return grainPattern
 }
 
-/** Facets of an in-flight bend fan, which must not be outlined individually. */
-function isBendStrip(id: string): boolean {
-  return id.includes(':s')
-}
-
 function tracePoly(ctx: CanvasRenderingContext2D, pts: Vec2[]) {
   if (pts.length < 3) return
   ctx.beginPath()
@@ -522,7 +601,7 @@ function tracePoly(ctx: CanvasRenderingContext2D, pts: Vec2[]) {
 
 function paint(
   ctx: CanvasRenderingContext2D,
-  frame: RenderFrame,
+  frame: PaperFrame,
   dpr: number,
   guides: boolean,
 ) {
@@ -583,10 +662,10 @@ function paint(
       ctx.restore()
     }
 
-    // A bending flap is emitted as a fan of strips (ids end ':s<n>'). Stroking
-    // each one turns a smooth bow into corrugated iron — the per-strip shading
-    // already reads as curvature, so only real paper edges get an edge.
-    if (f.stroke && !isBendStrip(f.id)) {
+    // `internal` marks a tessellation seam (bend strip, inflate fan) rather than
+    // a real cut edge. The engine already nulls their stroke; this is belt and
+    // braces, because outlining them turns a smooth bow into corrugated iron.
+    if (f.stroke && !f.internal) {
       ctx.strokeStyle = f.stroke
       ctx.lineWidth = f.strokeWidth
       ctx.lineJoin = 'round'

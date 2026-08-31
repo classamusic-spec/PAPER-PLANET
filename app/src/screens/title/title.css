@@ -1,0 +1,265 @@
+/* PAPER PLANET — the title: a lamp-lit desk with one sheet on it. */
+
+.pp-title {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  overflow: hidden;
+  padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
+}
+
+/* A second pool of light, tighter than the desk's own, so the title card is
+   plainly the lit subject and the corners fall away. */
+.pp-title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(96% 62% at 50% 34%, color-mix(in srgb, var(--paper-1) 34%, transparent), transparent 68%),
+    radial-gradient(140% 100% at 50% 118%, color-mix(in srgb, var(--ink) 26%, transparent), transparent 60%);
+}
+:root[data-theme='night'] .pp-title::after {
+  background:
+    radial-gradient(84% 54% at 50% 32%, color-mix(in srgb, var(--kincha) 20%, transparent), transparent 70%),
+    radial-gradient(150% 100% at 50% 122%, color-mix(in srgb, #000 40%, transparent), transparent 62%);
+}
+
+.pp-title > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── the drifting motes ──────────────────────────────────────────────────── */
+.pp-motes {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.pp-mote {
+  position: absolute;
+  display: block;
+  background: var(--paper-0);
+  box-shadow: 0 1px 2px rgba(var(--shadow-tint), 0.25);
+  transform: rotate(var(--mote-rot, 0deg));
+  animation: pp-mote-drift var(--mote-dur, 18s) ease-in-out var(--mote-delay, 0s) infinite alternate;
+}
+.pp-mote[data-shape='sliver'] {
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--paper-0) 72%, var(--kincha));
+}
+
+@keyframes pp-mote-drift {
+  from {
+    transform: translate3d(0, 0, 0) rotate(var(--mote-rot, 0deg));
+  }
+  to {
+    transform: translate3d(var(--mote-dx, 20px), var(--mote-dy, -30px), 0)
+      rotate(calc(var(--mote-rot, 0deg) + 34deg));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-mote { animation: none !important; }
+}
+
+/* ── the floating settings gear ──────────────────────────────────────────── */
+.pp-title__bar {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--safe-t) + var(--s-2));
+  right: calc(var(--safe-r) + var(--s-2));
+}
+
+/* ── the stage: the title card, its understack, and the crane ────────────── */
+.pp-title__stage {
+  display: grid;
+  grid-template-columns: min(100%, 460px);
+  justify-content: center;
+  align-content: center;
+  padding: var(--s-6) max(var(--s-5), var(--safe-l)) var(--s-4) max(var(--s-5), var(--safe-r));
+  min-height: 0;
+}
+.pp-title__stage > * {
+  grid-area: 1 / 1;
+}
+
+.pp-title__stack {
+  position: relative;
+  pointer-events: none;
+}
+.pp-title__under {
+  position: absolute;
+}
+/* two more sheets under the card, off-register the way a stack really sits */
+.pp-title__under--a { inset: 5% -5% -7% 3%; }
+.pp-title__under--b { inset: 2% -2% -3% -4%; }
+
+.pp-title__cardwrap { min-width: 0; }
+
+.pp-title__card {
+  --grain-strength: 0.6;
+  padding: clamp(var(--s-6), 6vw, var(--s-10)) clamp(var(--s-5), 5.5vw, var(--s-8));
+  text-align: center;
+}
+.pp-title__card .pp-paper__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.pp-title__logo {
+  --logo-size: clamp(2.25rem, 10.5vw, 3.5rem);
+  width: 100%;
+}
+
+.pp-title__welcome {
+  margin: 0;
+  max-width: 30ch;
+  font-size: var(--fs-body);
+  line-height: var(--lh-snug);
+  color: var(--ink-soft);
+  text-wrap: balance;
+}
+
+/* the crane sits on the desk, half-behind the card's lower-right corner */
+.pp-title__crane {
+  justify-self: end;
+  align-self: end;
+  z-index: 2;
+  width: clamp(84px, 26vw, 132px);
+  height: auto;
+  transform: translate(16%, 48%) rotate(-3deg);
+  filter: drop-shadow(6px 10px 10px rgba(var(--shadow-tint), 0.34));
+  pointer-events: none;
+}
+
+/* ── the cold-open beats ─────────────────────────────────────────────────── */
+.pp-title__beat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  animation: pp-beat-in var(--t-slow) var(--ease-settle) both;
+}
+@keyframes pp-beat-in {
+  from { opacity: 0; transform: translate3d(0, 10px, 0); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pp-title__beat { animation-duration: var(--t-quick); }
+}
+
+.pp-title__count {
+  margin: 0;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.pp-title__line {
+  margin: 0;
+  font-size: var(--fs-display-m);
+  font-weight: 700;
+  color: var(--ink);
+  text-wrap: balance;
+}
+.pp-title__note {
+  margin: 0;
+  max-width: 30ch;
+  font-size: var(--fs-body-l);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+
+/* ── the actions ─────────────────────────────────────────────────────────── */
+.pp-title__acts {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  width: min(100%, 460px);
+  margin-inline: auto;
+  padding: var(--s-4) max(var(--s-5), var(--safe-l)) max(var(--s-6), var(--safe-b)) max(var(--s-5), var(--safe-r));
+}
+.pp-title__acts > .pp-reveal { width: 100%; }
+
+.pp-title__seq {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+}
+
+.pp-title__ways {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+  width: 100%;
+}
+.pp-title__ways .pp-btn { width: 100%; }
+
+.pp-title__stat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  margin: 0;
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: 0.72;
+  text-align: center;
+}
+
+/* ── landscape phone: the desk seen from the side of the table ───────────── */
+@media (orientation: landscape) and (max-height: 560px) {
+  .pp-title {
+    grid-template-rows: 1fr;
+    grid-template-columns: 1.02fr 0.98fr;
+    align-items: center;
+  }
+  .pp-title__stage {
+    padding: var(--s-4) var(--s-3) var(--s-4) max(var(--s-6), var(--safe-l));
+    grid-template-columns: min(100%, 380px);
+  }
+  .pp-title__card { padding: var(--s-5) var(--s-5); }
+  .pp-title__logo { --logo-size: clamp(1.8rem, 5.4vw, 2.6rem); }
+  .pp-title__crane { width: clamp(64px, 13vw, 96px); }
+  .pp-title__acts {
+    width: min(100%, 380px);
+    padding: var(--s-4) max(var(--s-6), var(--safe-r)) var(--s-4) var(--s-3);
+    justify-content: center;
+  }
+  .pp-title__note { font-size: var(--fs-body); }
+}
+
+/* ── tablet: more air, a bigger sheet, nothing stretched ─────────────────── */
+@media (min-width: 768px) {
+  .pp-title__stage {
+    grid-template-columns: min(100%, 560px);
+    padding-top: var(--s-10);
+  }
+  .pp-title__acts { width: min(100%, 480px); gap: var(--s-4); }
+  .pp-title__crane { width: clamp(120px, 16vw, 176px); }
+  .pp-title__logo { --logo-size: clamp(3rem, 6.6vw, 4.4rem); }
+}
+
+@media (min-width: 1024px) and (min-height: 900px) {
+  .pp-title__stage { grid-template-columns: min(100%, 620px); }
+  .pp-title__card { padding: var(--s-12) var(--s-10); }
+  .pp-title__acts { width: min(100%, 520px); padding-bottom: max(var(--s-16), var(--safe-b)); }
+}
+
+/* ── high ink: the card gets a firm cut edge, the motes step back ────────── */
+:root[data-high-ink='true'] .pp-mote { opacity: 0.12 !important; }
+:root[data-high-ink='true'] .pp-title__welcome,
+:root[data-high-ink='true'] .pp-title__note { color: var(--ink); }
+:root[data-high-ink='true'] .pp-title__stat { opacity: 1; }

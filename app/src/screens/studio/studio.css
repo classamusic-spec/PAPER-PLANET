@@ -209,3 +209,32 @@
     animation-duration: var(--t-quick);
   }
 }
+
+/* Tablet portrait: a wide desk with the paper as the subject. */
+@media (min-width: 768px) and (orientation: portrait) {
+  .pp-studio__say {
+    padding-top: var(--s-8);
+  }
+  .pp-fold-canvas {
+    width: min(72vw, 56vh);
+  }
+}
+
+/* Gold leaf notice */
+.pp-studio__golden {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  margin: var(--s-2) auto 0;
+  padding: var(--s-2) var(--s-4);
+  width: fit-content;
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  color: var(--kincha-deep);
+  background: var(--kincha-soft);
+  border-radius: var(--r-pill);
+  transform: rotate(-1deg);
+}

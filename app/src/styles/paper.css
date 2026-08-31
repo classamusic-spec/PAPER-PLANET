@@ -1,0 +1,1003 @@
+/* PAPER PLANET — the material layer: grain, sheets, edges, cast shadows, ink, and the kit's surfaces. */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   0. ONE SHARED GRAIN SYSTEM
+   Two data-URI turbulence tiles, defined once on :root and referenced by every
+   surface. The browser decodes each URL a single time and reuses the raster —
+   so a screen with 200 sheets still costs exactly two rasterisations.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --grain-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.42 0 0 0 0 0.34 0 0 0 0 0.24 0 0 0 0.085 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grain-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='480'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.026 0.13' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.4 0 0 0 0 0.33 0 0 0 0 0.24 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='480' height='480' filter='url(%23f)'/%3E%3C/svg%3E");
+  --grain-strength: 1;
+
+  /* label colours guaranteed to sit on a dark / light field in this theme */
+  --ink-on-dark: var(--paper-0);
+  --ink-on-light: var(--ink);
+
+  /* the catch-light along a folded edge */
+  --sheen: color-mix(in srgb, var(--paper-0) 72%, transparent);
+  --sheen-soft: color-mix(in srgb, var(--paper-0) 34%, transparent);
+  --shade-soft: color-mix(in srgb, var(--paper-3) 46%, transparent);
+  /* the little shadow a scissored shape drops on the sheet beneath it */
+  --icon-cut: color-mix(in srgb, var(--ink) 32%, transparent);
+}
+
+:root[data-theme='night'] {
+  --grain-fine: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.97 0 0 0 0 0.9 0 0 0 0 0.8 0 0 0 0.055 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  --grain-fibre: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='480'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.026 0.13' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.95 0 0 0 0 0.87 0 0 0 0 0.76 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='480' height='480' filter='url(%23f)'/%3E%3C/svg%3E");
+  --ink-on-dark: var(--ink);
+  --ink-on-light: var(--paper-4);
+  --sheen: color-mix(in srgb, var(--paper-0) 58%, transparent);
+  --sheen-soft: color-mix(in srgb, var(--paper-0) 26%, transparent);
+  --shade-soft: color-mix(in srgb, var(--paper-4) 52%, transparent);
+  --icon-cut: color-mix(in srgb, var(--paper-4) 62%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1. ACCENT ROLES
+   Accents are dyes for SHAPES. Text on an accent field uses whichever ink
+   clears 4.5:1 in the current theme — resolved once, here.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --acc-beni-face: var(--beni-deep);      --acc-beni-hi: var(--beni);         --acc-beni-label: var(--ink-on-dark);
+  --acc-kincha-face: var(--kincha);       --acc-kincha-hi: var(--kincha-soft);--acc-kincha-label: var(--ink-on-light);
+  --acc-matcha-face: var(--matcha);       --acc-matcha-hi: var(--matcha-soft);--acc-matcha-label: var(--ink-on-light);
+  --acc-ai-face: var(--ai);               --acc-ai-hi: var(--ai-soft);        --acc-ai-label: var(--ink-on-dark);
+  --acc-murasaki-face: var(--murasaki);   --acc-murasaki-hi: var(--murasaki-soft); --acc-murasaki-label: var(--ink-on-dark);
+  --acc-sakura-face: var(--sakura);       --acc-sakura-hi: var(--paper-0);    --acc-sakura-label: var(--ink-on-light);
+  --acc-gold-leaf-face: var(--gold-leaf); --acc-gold-leaf-hi: var(--gold-hi); --acc-gold-leaf-label: var(--ink-on-light);
+  --acc-ink-face: var(--ink);             --acc-ink-hi: var(--ink-soft);      --acc-ink-label: var(--ink-on-dark);
+}
+:root[data-theme='night'] {
+  /* night accents are lighter than the paper, so the label flips dark */
+  --acc-beni-face: var(--beni);           --acc-beni-hi: var(--sakura);       --acc-beni-label: var(--ink-on-light);
+  --acc-matcha-face: var(--matcha);       --acc-matcha-hi: var(--matcha-soft);--acc-matcha-label: var(--ink-on-light);
+  --acc-ai-face: var(--ai);               --acc-ai-hi: var(--ai-soft);        --acc-ai-label: var(--ink-on-light);
+  --acc-murasaki-face: var(--murasaki);   --acc-murasaki-hi: var(--murasaki-soft); --acc-murasaki-label: var(--ink-on-light);
+  --acc-ink-face: var(--ink);             --acc-ink-hi: var(--ink-soft);      --acc-ink-label: var(--ink-on-light);
+}
+/* the only two washes that stay light under the lamp */
+:root[data-theme='night'] [data-accent='sakura'][data-accent],
+:root[data-theme='night'] [data-accent='gold-leaf'][data-accent] { --acc-wash-label: var(--ink-on-light); }
+
+/* accent as a *tint on paper* — a wash, safe behind ink text */
+[data-accent='beni'][data-accent]      { --acc-face: var(--acc-beni-face);      --acc-hi: var(--acc-beni-hi);      --acc-label: var(--acc-beni-label);      --acc-wash: var(--beni-soft);     --acc-pure: var(--beni);      --acc-wash-label: var(--ink); }
+[data-accent='kincha'][data-accent]    { --acc-face: var(--acc-kincha-face);    --acc-hi: var(--acc-kincha-hi);    --acc-label: var(--acc-kincha-label);    --acc-wash: var(--kincha-soft);   --acc-pure: var(--kincha); --acc-wash-label: var(--ink); }
+[data-accent='matcha'][data-accent]    { --acc-face: var(--acc-matcha-face);    --acc-hi: var(--acc-matcha-hi);    --acc-label: var(--acc-matcha-label);    --acc-wash: var(--matcha-soft);   --acc-pure: var(--matcha); --acc-wash-label: var(--ink); }
+[data-accent='ai'][data-accent]        { --acc-face: var(--acc-ai-face);        --acc-hi: var(--acc-ai-hi);        --acc-label: var(--acc-ai-label);        --acc-wash: var(--ai-soft);       --acc-pure: var(--ai); --acc-wash-label: var(--ink); }
+[data-accent='murasaki'][data-accent]  { --acc-face: var(--acc-murasaki-face);  --acc-hi: var(--acc-murasaki-hi);  --acc-label: var(--acc-murasaki-label);  --acc-wash: var(--murasaki-soft); --acc-pure: var(--murasaki); --acc-wash-label: var(--ink); }
+[data-accent='sakura'][data-accent]    { --acc-face: var(--acc-sakura-face);    --acc-hi: var(--acc-sakura-hi);    --acc-label: var(--acc-sakura-label);    --acc-wash: var(--sakura);        --acc-pure: var(--sakura); --acc-wash-label: var(--ink); }
+[data-accent='gold-leaf'][data-accent] { --acc-face: var(--acc-gold-leaf-face); --acc-hi: var(--acc-gold-leaf-hi); --acc-label: var(--acc-gold-leaf-label); --acc-wash: var(--gold-hi);       --acc-pure: var(--gold-leaf); --acc-wash-label: var(--ink); }
+[data-accent='ink'][data-accent]       { --acc-face: var(--acc-ink-face);       --acc-hi: var(--acc-ink-hi);       --acc-label: var(--acc-ink-label);       --acc-wash: var(--paper-3);       --acc-pure: var(--ink); --acc-wash-label: var(--ink); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   2. GRAIN + DESK UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-grain { position: relative; }
+.pp-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: var(--grain-fine), var(--grain-fibre);
+  background-size: 180px 180px, 480px 480px;
+  opacity: var(--grain-strength);
+}
+
+/* The desk: the darkest paper, lit. Everything else is a sheet lying on it. */
+.pp-desk {
+  position: relative;
+  background-color: var(--paper-4);
+  isolation: isolate;
+}
+.pp-desk::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(120% 84% at 50% 8%, color-mix(in srgb, var(--kincha) 16%, transparent), transparent 62%),
+    var(--grain-fine);
+  background-size: auto, 180px 180px;
+}
+:root[data-theme='night'] .pp-desk::before {
+  background:
+    radial-gradient(96% 66% at 50% 12%, color-mix(in srgb, var(--kincha) 26%, transparent), transparent 66%),
+    var(--grain-fine);
+  background-size: auto, 180px 180px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   3. THE SHEET — <Paper>
+   Structure:  .pp-paper > .pp-paper__cast (shadow substrate)
+                         > .pp-paper__sheet (clipped, toned, grained)
+                         > .pp-paper__rim   (edge line for deckle / torn)
+                         > .pp-paper__body  (content)
+   The cast shadow lives on its own unclipped substrate so an irregular edge
+   never eats the drop shadow.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-paper {
+  --pp-tone: var(--paper-1);
+  --pp-radius: var(--r-md);
+  --pp-tilt: 0deg;
+  --pp-shadow: var(--sh-1);
+  position: relative;
+  display: block;
+  transform: rotate(var(--pp-tilt));
+  contain: layout style;
+}
+.pp-paper__cast {
+  position: absolute;
+  inset: var(--pp-cast-inset, 2px);
+  border-radius: var(--pp-radius);
+  box-shadow: var(--pp-shadow);
+  pointer-events: none;
+}
+.pp-paper__sheet {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--pp-radius);
+  background-color: var(--pp-tone);
+  background-image: linear-gradient(157deg, var(--sheen-soft) 0%, transparent 38%, transparent 74%, var(--shade-soft) 100%);
+  pointer-events: none;
+  overflow: hidden;
+}
+.pp-paper__sheet::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain-fine), var(--grain-fibre);
+  background-size: 180px 180px, 480px 480px;
+  opacity: var(--grain-strength);
+}
+.pp-paper[data-grain='off'] .pp-paper__sheet::after { display: none; }
+
+/* clean & cut keep a crisp rim; deckle & torn draw theirs as an SVG stroke */
+.pp-paper[data-edge='clean'] .pp-paper__sheet,
+.pp-paper[data-edge='cut'] .pp-paper__sheet {
+  box-shadow: inset 0 0 0 1px var(--paper-edge);
+}
+.pp-paper[data-edge='cut'] .pp-paper__sheet,
+.pp-paper[data-edge='deckle'] .pp-paper__sheet,
+.pp-paper[data-edge='torn'] .pp-paper__sheet {
+  clip-path: var(--pp-clip, none);
+}
+.pp-paper__rim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.pp-paper__body {
+  position: relative;
+  z-index: 1;
+}
+
+/* a folded corner: a triangular flap peeled off the top-right of a sheet */
+.pp-paper[data-dogear='true']::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(225deg, var(--paper-3) 0 50%, transparent 50%);
+  border-bottom-left-radius: var(--r-xs);
+  box-shadow: -1px 1px 0 var(--paper-edge);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   4. ELEVATION + HAIRLINES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-e0 { box-shadow: var(--sh-0); }
+.pp-e1 { box-shadow: var(--sh-1); }
+.pp-e2 { box-shadow: var(--sh-2); }
+.pp-e3 { box-shadow: var(--sh-3); }
+.pp-e4 { box-shadow: var(--sh-4); }
+
+.pp-hairline {
+  height: 1px;
+  border: 0;
+  background: var(--ink-hair);
+  width: 100%;
+}
+.pp-hairline--fade {
+  background: linear-gradient(90deg, transparent, var(--ink-hair) 12%, var(--ink-hair) 88%, transparent);
+}
+/* a scored crease: a hairline shadow above, a catch-light below */
+.pp-crease {
+  height: 2px;
+  border: 0;
+  background: linear-gradient(180deg, var(--ink-hair) 0 50%, var(--sheen) 50% 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   5. FOCUS — a pencil ring, never a browser blue
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-focus:focus-visible,
+.pp-focusable:focus-visible {
+  outline: 2.5px dashed var(--ink);
+  outline-offset: 3px;
+  border-radius: var(--r-sm);
+}
+.pp-focus:focus:not(:focus-visible) { outline: none; }
+
+/* every control gets a real 44pt target even when it is drawn smaller */
+.pp-target { position: relative; }
+.pp-target::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-md);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   6. BUTTON — folded card. It lies proud of the desk on a hard offset shadow
+   and presses flat: the shadow collapses and the card lands on the surface.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-btn {
+  --btn-lift: 3px;
+  --btn-pad-x: 20px;
+  --btn-pad-y: 11px;
+  --btn-fs: var(--fs-body);
+  --btn-radius: var(--r-md);
+  --face: var(--paper-0);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--touch-min);
+  padding: var(--btn-pad-y) var(--btn-pad-x);
+  border: 0;
+  border-radius: var(--btn-radius);
+  background-color: var(--face);
+  background-image:
+    linear-gradient(178deg, color-mix(in srgb, var(--acc-hi) 30%, transparent) 0 2px, transparent 2px),
+    linear-gradient(160deg, var(--sheen-soft) 0%, transparent 46%);
+  color: var(--acc-label);
+  font-family: var(--font-text);
+  font-size: var(--btn-fs);
+  font-weight: 800;
+  letter-spacing: 0.005em;
+  line-height: 1.1;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transform: translate3d(calc(var(--btn-lift) * -1), calc(var(--btn-lift) * -1), 0) rotate(var(--pp-tilt, 0deg));
+  box-shadow:
+    var(--btn-lift) var(--btn-lift) 0 0 color-mix(in srgb, var(--face) 62%, var(--ink)),
+    calc(var(--btn-lift) + 1px) calc(var(--btn-lift) + 2px) 6px rgba(var(--shadow-tint), 0.22);
+  transition:
+    transform var(--t-tap) var(--ease-crisp),
+    box-shadow var(--t-tap) var(--ease-crisp),
+    background-color var(--t-quick) var(--ease-paper);
+}
+.pp-btn::after {
+  /* grain, so the button is made of the same stuff as everything else */
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--grain-fine);
+  background-size: 180px 180px;
+  opacity: calc(var(--grain-strength) * 0.75);
+  pointer-events: none;
+}
+.pp-btn > * { position: relative; z-index: 1; }
+
+.pp-btn:hover:not(:disabled) { background-color: color-mix(in srgb, var(--face) 92%, var(--acc-hi)); }
+.pp-btn:active:not(:disabled),
+.pp-btn[data-pressed='true']:not(:disabled) {
+  transform: translate3d(0, 0, 0) rotate(var(--pp-tilt, 0deg));
+  box-shadow:
+    0 0 0 0 color-mix(in srgb, var(--face) 62%, var(--ink)),
+    0 1px 2px rgba(var(--shadow-tint), 0.28);
+}
+.pp-btn:disabled {
+  cursor: default;
+  opacity: 0.44;
+  filter: saturate(0.55);
+}
+.pp-btn[data-block='true'] { display: flex; width: calc(100% - var(--btn-lift)); }
+
+/* sizes */
+.pp-btn[data-size='sm'] { --btn-pad-x: 14px; --btn-pad-y: 7px; --btn-fs: var(--fs-label); --btn-lift: 2px; --btn-radius: var(--r-sm); min-height: 34px; }
+.pp-btn[data-size='lg'] { --btn-pad-x: 28px; --btn-pad-y: 16px; --btn-fs: var(--fs-body-l); --btn-lift: 4px; --btn-radius: var(--r-lg); }
+
+/* variants */
+.pp-btn[data-variant='solid'] { --face: var(--acc-face); }
+.pp-btn[data-variant='soft'] {
+  --face: var(--acc-wash);
+  --acc-label: var(--acc-wash-label);
+}
+.pp-btn[data-variant='ghost'] {
+  --face: var(--paper-0);
+  --acc-label: var(--ink);
+  box-shadow:
+    var(--btn-lift) var(--btn-lift) 0 0 var(--paper-3),
+    inset 0 0 0 1.5px var(--paper-edge);
+}
+.pp-btn[data-variant='ghost']:active:not(:disabled),
+.pp-btn[data-variant='ghost'][data-pressed='true']:not(:disabled) {
+  box-shadow: 0 0 0 0 var(--paper-3), inset 0 0 0 1.5px var(--paper-edge);
+}
+.pp-btn[data-variant='quiet'] {
+  --btn-lift: 0px;
+  --face: transparent;
+  /* a quiet button is still a control: it keeps full ink and earns its
+     quietness by having no card. --ink-soft would fail 4.5:1 on the desk. */
+  --acc-label: var(--ink);
+  background-image: none;
+  box-shadow: none;
+  transform: none;
+}
+.pp-btn[data-variant='quiet']::after { display: none; }
+.pp-btn[data-variant='quiet']:hover:not(:disabled) { background-color: var(--paper-2); }
+.pp-btn[data-variant='quiet']:active:not(:disabled) { transform: scale(0.97); box-shadow: none; }
+
+.pp-btn__icon { display: inline-flex; margin-left: -2px; }
+.pp-btn__label { display: inline-block; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   7. CHIP — a small paper tag
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background-color: var(--paper-0);
+  box-shadow: inset 0 0 0 1.25px var(--paper-edge), var(--sh-1);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  transform: rotate(var(--pp-tilt, 0deg));
+  transition: transform var(--t-quick) var(--ease-paper), background-color var(--t-quick) var(--ease-paper);
+}
+.pp-chip[data-tone='wash'] { background-color: var(--acc-wash); color: var(--acc-wash-label); box-shadow: inset 0 0 0 1.25px color-mix(in srgb, var(--acc-pure) 42%, transparent), var(--sh-1); }
+.pp-chip[data-tone='solid'] { background-color: var(--acc-face); color: var(--acc-label); box-shadow: var(--sh-1); }
+.pp-chip__dot {
+  width: 8px; height: 8px; border-radius: 2px; flex: none;
+  background: var(--acc-pure);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc-pure) 55%, var(--ink));
+  transform: rotate(14deg);
+}
+button.pp-chip { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.pp-chip[aria-pressed='true'] { background-color: var(--acc-face); color: var(--acc-label); box-shadow: var(--sh-2); }
+button.pp-chip[aria-pressed='true'] .pp-chip__dot { background: var(--acc-label); }
+button.pp-chip:active { transform: rotate(var(--pp-tilt, 0deg)) scale(0.96); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   8. METER — ink soaking into a paper strip
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-meter { display: block; width: 100%; }
+.pp-meter__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.pp-meter__track {
+  position: relative;
+  height: var(--meter-h, 12px);
+  border-radius: var(--r-pill);
+  background-color: var(--paper-2);
+  box-shadow: inset 0 1px 2px rgba(var(--shadow-tint), 0.16), inset 0 0 0 1px var(--paper-edge);
+  overflow: hidden;
+}
+.pp-meter__track::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain-fine);
+  background-size: 180px 180px;
+  opacity: var(--grain-strength);
+  pointer-events: none;
+}
+.pp-meter__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--meter-v, 0%);
+  border-radius: var(--r-pill);
+  background-color: var(--acc-pure);
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--acc-pure) 78%, var(--ink)) 0%, var(--acc-pure) 62%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc-pure) 58%, var(--ink));
+  transition: width var(--t-slow) var(--ease-settle);
+}
+/* the wet leading edge, where the ink is still spreading into the fibre */
+.pp-meter__fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -7px;
+  bottom: 0;
+  width: 14px;
+  border-radius: var(--r-pill);
+  background: radial-gradient(60% 120% at 20% 50%, color-mix(in srgb, var(--acc-pure) 85%, transparent), transparent 72%);
+}
+.pp-meter[data-ticks='true'] .pp-meter__track {
+  background-image: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), var(--ink-hair) calc(10% - 1px), var(--ink-hair) 10%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   9. TOGGLE — a paper switch: a card that slides in a scored well
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+  min-height: var(--touch-min);
+  text-align: left;
+}
+.pp-toggle__well {
+  position: relative;
+  flex: none;
+  width: 58px;
+  height: 32px;
+  border-radius: var(--r-pill);
+  background-color: var(--paper-2);
+  box-shadow: inset 0 1.5px 3px rgba(var(--shadow-tint), 0.2), inset 0 0 0 1px var(--paper-edge);
+  transition: background-color var(--t-base) var(--ease-paper);
+  overflow: hidden;
+}
+.pp-toggle[aria-checked='true'] .pp-toggle__well { background-color: var(--acc-face); }
+.pp-toggle__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background-color: var(--paper-0);
+  background-image: linear-gradient(155deg, var(--sheen) 0%, transparent 52%);
+  box-shadow: 1.5px 2px 0 rgba(var(--shadow-tint), 0.24), inset 0 0 0 1px var(--paper-edge);
+  transition: transform var(--t-base) var(--ease-paper);
+}
+.pp-toggle[aria-checked='true'] .pp-toggle__knob { transform: translateX(26px) rotate(6deg); }
+.pp-toggle__knob::after {
+  /* the crease down the middle of the little card */
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: linear-gradient(90deg, var(--ink-hair) 0 50%, var(--sheen) 50% 100%);
+  border-radius: 1px;
+}
+.pp-toggle:active .pp-toggle__knob { transform: translateX(var(--knob-x, 0)) scaleX(1.14); }
+.pp-toggle[aria-checked='true']:active .pp-toggle__knob { transform: translateX(22px) scaleX(1.14) rotate(6deg); }
+.pp-toggle__text { display: flex; flex-direction: column; gap: 2px; }
+.pp-toggle__hint { font-size: var(--fs-label); font-weight: 600; color: var(--ink-soft); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   10. SLIDER — a boxwood ruler with a paper thumb
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-slider { display: block; width: 100%; }
+.pp-slider__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.pp-slider__rail {
+  position: relative;
+  height: var(--touch-min);
+  display: flex;
+  align-items: center;
+  touch-action: none;
+  cursor: pointer;
+}
+.pp-slider__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 10px;
+  border-radius: var(--r-pill);
+  background-color: var(--paper-2);
+  box-shadow: inset 0 1.5px 3px rgba(var(--shadow-tint), 0.18), inset 0 0 0 1px var(--paper-edge);
+  overflow: hidden;
+}
+.pp-slider__ticks {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 4px;
+  height: 7px;
+  background-image: repeating-linear-gradient(90deg, var(--ink-hair) 0 1px, transparent 1px calc(100% / var(--tick-n, 10)));
+  opacity: 0.85;
+  pointer-events: none;
+}
+.pp-slider__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--slider-v, 0%);
+  background-color: var(--acc-pure);
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--acc-pure) 80%, var(--ink)), var(--acc-pure));
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--acc-pure) 58%, var(--ink));
+}
+.pp-slider__thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--slider-v, 0%);
+  width: 30px;
+  height: 34px;
+  margin-left: -15px;
+  border-radius: var(--r-sm);
+  background-color: var(--paper-0);
+  background-image: linear-gradient(152deg, var(--sheen) 0%, transparent 54%);
+  box-shadow: 2px 3px 0 rgba(var(--shadow-tint), 0.22), inset 0 0 0 1px var(--paper-edge);
+  transform: translateY(-50%) rotate(-1.5deg);
+  transition: transform var(--t-tap) var(--ease-crisp), box-shadow var(--t-tap) var(--ease-crisp);
+}
+.pp-slider__thumb::after {
+  content: '';
+  position: absolute;
+  inset: 8px 11px;
+  background: linear-gradient(90deg, var(--ink-hair) 0 1.5px, transparent 1.5px 4px);
+  background-size: 4px 100%;
+}
+.pp-slider__rail:active .pp-slider__thumb,
+.pp-slider__rail[data-dragging='true'] .pp-slider__thumb {
+  transform: translateY(-50%) rotate(-1.5deg) scale(1.08);
+  box-shadow: 1px 1px 0 rgba(var(--shadow-tint), 0.22), inset 0 0 0 1px var(--paper-edge);
+}
+.pp-slider__rail:focus-visible { outline: 2.5px dashed var(--ink); outline-offset: 2px; border-radius: var(--r-sm); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   11. TABS — index cards in a box. The active card is pulled forward.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-tabs { display: block; }
+.pp-tabs__list {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.pp-tabs__list::-webkit-scrollbar { display: none; }
+.pp-tab {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: var(--touch-min);
+  padding: 10px 17px 11px;
+  border: 0;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background-color: var(--paper-2);
+  color: var(--ink-soft);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--paper-edge), 0 -2px 5px rgba(var(--shadow-tint), 0.09);
+  transform: translateY(5px) rotate(var(--pp-tilt, 0deg));
+  transition: transform var(--t-base) var(--ease-paper), background-color var(--t-base) var(--ease-paper), color var(--t-base) var(--ease-paper);
+}
+.pp-tab::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--grain-fine);
+  background-size: 180px 180px;
+  opacity: calc(var(--grain-strength) * 0.8);
+  pointer-events: none;
+}
+.pp-tab > * { position: relative; z-index: 1; }
+.pp-tab[aria-selected='true'] {
+  background-color: var(--paper-0);
+  color: var(--ink);
+  transform: translateY(0) rotate(var(--pp-tilt, 0deg));
+  box-shadow: inset 0 0 0 1px var(--paper-edge), 0 -3px 10px rgba(var(--shadow-tint), 0.14);
+  z-index: 2;
+}
+/* the coloured index-card stripe along the top of the raised tab */
+.pp-tab[aria-selected='true']::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--acc-pure, var(--beni));
+}
+.pp-tabs__panel {
+  position: relative;
+  border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
+  background-color: var(--paper-0);
+  box-shadow: inset 0 0 0 1px var(--paper-edge), var(--sh-2);
+  padding: var(--s-5);
+  overflow: hidden;
+}
+.pp-tabs__panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain-fine), var(--grain-fibre);
+  background-size: 180px 180px, 480px 480px;
+  opacity: var(--grain-strength);
+  pointer-events: none;
+}
+.pp-tabs__panel > * { position: relative; z-index: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   12. SHEET — a sheet laid onto a dimmed desk
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  /* a desk with the lamp turned down — never a flat black wash */
+  background-color: color-mix(in srgb, var(--paper-4) 88%, transparent);
+  background-image:
+    radial-gradient(88% 62% at 50% 106%, color-mix(in srgb, var(--kincha) 22%, transparent), transparent 70%),
+    var(--grain-fine);
+  background-size: auto, 180px 180px;
+  animation: pp-fade-in var(--t-base) var(--ease-paper) both;
+  -webkit-tap-highlight-color: transparent;
+}
+.pp-sheet-host {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-sheet);
+  display: flex;
+  pointer-events: none;
+}
+.pp-sheet-host[data-side='bottom'] { align-items: flex-end; justify-content: center; }
+.pp-sheet-host[data-side='center'] { align-items: center; justify-content: center; padding: var(--s-5); }
+.pp-sheet {
+  position: relative;
+  pointer-events: auto;
+  width: 100%;
+  max-width: var(--content-max);
+  max-height: calc(100dvh - var(--safe-t) - 24px);
+  display: flex;
+  flex-direction: column;
+  will-change: transform;
+}
+.pp-sheet-host[data-side='bottom'] .pp-sheet {
+  padding-bottom: calc(var(--safe-b) + 14px);
+  animation: pp-sheet-up var(--t-slow) var(--ease-settle) both;
+}
+.pp-sheet-host[data-side='center'] .pp-sheet {
+  max-width: 480px;
+  animation: pp-sheet-land var(--t-slow) var(--ease-settle) both;
+}
+.pp-sheet[data-closing='true'] { animation: pp-sheet-down var(--t-base) var(--ease-crisp) both; }
+.pp-sheet__grip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  cursor: grab;
+  touch-action: none;
+}
+.pp-sheet__grip::before {
+  content: '';
+  width: 46px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--paper-3);
+  box-shadow: inset 0 1px 0 var(--sheen);
+}
+.pp-sheet__head {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 2px var(--s-5) 12px;
+}
+.pp-sheet__title { font-family: var(--font-display); font-size: var(--fs-display-m); font-weight: 800; letter-spacing: var(--tracking-display); line-height: var(--lh-tight); color: var(--ink); margin: 0; }
+.pp-sheet__note { margin: 5px 0 0; font-size: var(--fs-body); color: var(--ink-soft); line-height: var(--lh-body); }
+.pp-sheet__body { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0 var(--s-5) var(--s-5); }
+.pp-sheet__foot { flex: none; padding: var(--s-4) var(--s-5) var(--s-1); display: flex; gap: 10px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   13. TOAST — a paper slip dropped in from the top edge
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-toasts {
+  position: fixed;
+  top: calc(var(--safe-t) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, calc(100vw - 24px));
+  pointer-events: none;
+}
+.pp-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 14px;
+  border-radius: var(--r-md);
+  background-color: var(--paper-0);
+  box-shadow: inset 0 0 0 1px var(--paper-edge), var(--sh-3);
+  color: var(--ink);
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  line-height: var(--lh-snug);
+  animation: pp-slip-in var(--t-slow) var(--ease-settle) both;
+  contain: layout style;
+}
+.pp-toast[data-closing='true'] { animation: pp-slip-out var(--t-base) var(--ease-crisp) both; }
+.pp-toast__mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  background: var(--acc-face);
+  color: var(--acc-label);
+  transform: rotate(-4deg);
+}
+.pp-toast__text { flex: 1; min-width: 0; }
+.pp-toast__note { display: block; margin-top: 2px; font-size: var(--fs-label); font-weight: 600; color: var(--ink-soft); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   14. CURRENCY PILLS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-coin {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px 5px 7px;
+  border-radius: var(--r-pill);
+  background-color: var(--paper-0);
+  box-shadow: inset 0 0 0 1.25px var(--paper-edge), var(--sh-1);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  min-height: 32px;
+  transform: rotate(var(--pp-tilt, 0deg));
+}
+.pp-coin__mark {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 6px;
+  background: var(--acc-face);
+  color: var(--acc-label);
+  transform: rotate(-5deg);
+  box-shadow: 1px 1px 0 rgba(var(--shadow-tint), 0.2);
+}
+.pp-coin[data-flash='true'] .pp-coin__mark { animation: pp-pop var(--t-slow) var(--ease-alive); }
+.pp-coin__value { font-variant-numeric: tabular-nums; }
+.pp-coin__delta {
+  margin-left: 2px;
+  font-size: var(--fs-label);
+  font-weight: 800;
+  color: var(--acc-pure);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   15. LOGOTYPE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-logo { display: inline-flex; flex-direction: column; align-items: center; gap: 10px; color: var(--ink); }
+.pp-logo__mark { margin-bottom: 2px; filter: drop-shadow(0 6px 10px rgba(var(--shadow-tint), 0.22)); }
+.pp-logo__word {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0 0.26em;
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: var(--logo-size, var(--fs-display-l));
+  font-variation-settings: 'SOFT' 40, 'WONK' 1, 'opsz' 120;
+  font-optical-sizing: auto;
+  letter-spacing: -0.03em;
+  line-height: 0.94;
+  text-transform: uppercase;
+}
+.pp-logo__part { display: inline-flex; align-items: baseline; }
+.pp-logo__glyph { position: relative; display: inline-block; }
+/* the crease that runs through the A of PAPER.
+   The gradient is clipped to the glyph itself, so the fold lands on the letter
+   and nowhere else: a shadow on one side of the crease, a catch-light on the other. */
+.pp-logo__glyph--crease {
+  background-image: linear-gradient(
+    100deg,
+    var(--ink) 0 43.6%,
+    color-mix(in srgb, var(--paper-1) 90%, var(--ink)) 43.6% 46.4%,
+    color-mix(in srgb, var(--ink) 58%, var(--paper-4)) 46.4% 48.4%,
+    color-mix(in srgb, var(--ink) 90%, var(--paper-1)) 48.4% 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.pp-logo__disc {
+  display: inline-block;
+  width: 0.84em;
+  height: 0.84em;
+  margin: 0 0.012em;
+  transform: translateY(0.075em);
+  color: var(--ink);
+}
+.pp-logo__rule { width: 100%; height: 1px; background: var(--ink-hair); }
+.pp-logo__tag {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 800;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.pp-logo__mark { display: block; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   16. ICON
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-icon { display: inline-block; flex: none; vertical-align: -0.14em; overflow: visible; }
+.pp-icon__cut { opacity: 1; }
+.pp-icon__soft { opacity: 0.5; }
+.pp-icon__deep { opacity: 0.78; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   17. TYPE HELPERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-display { font-family: var(--font-display); font-weight: 800; letter-spacing: var(--tracking-display); line-height: var(--lh-tight); font-variation-settings: 'SOFT' 40, 'WONK' 1; font-optical-sizing: auto; }
+.pp-label { font-family: var(--font-text); font-weight: 800; font-size: var(--fs-label); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-soft); }
+.pp-num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum' 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   18. MOTION
+   ═══════════════════════════════════════════════════════════════════════════ */
+@keyframes pp-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes pp-rise {
+  from { opacity: 0; transform: translate3d(0, var(--rise-y, 16px), 0) rotate(var(--rise-r, -1.4deg)) scale(0.985); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) rotate(var(--pp-tilt, 0deg)) scale(1); }
+}
+@keyframes pp-sheet-up {
+  from { transform: translate3d(0, 100%, 0) rotate(1.2deg); }
+  to   { transform: translate3d(0, 0, 0) rotate(0deg); }
+}
+@keyframes pp-sheet-down {
+  from { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 1; }
+  to   { transform: translate3d(0, 100%, 0) rotate(1.4deg); opacity: 0.6; }
+}
+@keyframes pp-sheet-land {
+  from { opacity: 0; transform: translate3d(0, 22px, 0) scale(0.96) rotate(1.6deg); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+}
+@keyframes pp-slip-in {
+  from { opacity: 0; transform: translate3d(0, -120%, 0) rotate(-3.2deg); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) rotate(-0.7deg); }
+}
+@keyframes pp-slip-out {
+  from { opacity: 1; transform: translate3d(0, 0, 0) rotate(-0.7deg); }
+  to   { opacity: 0; transform: translate3d(0, -130%, 0) rotate(-4deg); }
+}
+@keyframes pp-pop {
+  0%   { transform: rotate(-5deg) scale(1); }
+  45%  { transform: rotate(-5deg) scale(1.28); }
+  100% { transform: rotate(-5deg) scale(1); }
+}
+@keyframes pp-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.018); }
+}
+@keyframes pp-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(var(--pp-tilt, 0deg)); }
+  50%      { transform: translate3d(var(--drift-x, 6px), var(--drift-y, -9px), 0) rotate(calc(var(--pp-tilt, 0deg) + 2deg)); }
+}
+@keyframes pp-shimmer { from { background-position: 220% 0 } to { background-position: -120% 0 } }
+@keyframes pp-rustle {
+  0%, 100% { transform: rotate(var(--pp-tilt, 0deg)); }
+  30%      { transform: rotate(calc(var(--pp-tilt, 0deg) - 0.6deg)); }
+  70%      { transform: rotate(calc(var(--pp-tilt, 0deg) + 0.6deg)); }
+}
+
+.pp-reveal { animation: pp-rise var(--t-slow) var(--ease-settle) both; animation-delay: var(--reveal-delay, 0ms); }
+.pp-breathe { animation: pp-breathe 4.2s ease-in-out infinite; }
+.pp-drift { animation: pp-drift var(--drift-dur, 16s) ease-in-out infinite; }
+.pp-shimmer {
+  background-image: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--gold-hi) 72%, transparent) 46%, transparent 62%);
+  background-size: 220% 100%;
+  animation: pp-shimmer 3.6s var(--ease-paper) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-breathe, .pp-drift, .pp-shimmer { animation: none !important; }
+  .pp-reveal { animation-duration: var(--t-quick); animation-delay: 0ms !important; }
+  .pp-toast, .pp-sheet, .pp-scrim { animation-duration: var(--t-quick) !important; }
+  .pp-meter__fill, .pp-toggle__knob, .pp-tab, .pp-btn { transition-duration: var(--t-quick) !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   19. HIGH INK — heavier outlines, firmer edges, calmer grain
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root[data-high-ink='true'] {
+  --grain-strength: 0.45;
+  --paper-edge: color-mix(in srgb, var(--ink) 46%, var(--paper-3));
+}
+:root[data-high-ink='true'] .pp-paper[data-edge='clean'] .pp-paper__sheet,
+:root[data-high-ink='true'] .pp-paper[data-edge='cut'] .pp-paper__sheet { box-shadow: inset 0 0 0 2px var(--paper-edge); }
+:root[data-high-ink='true'] .pp-chip,
+:root[data-high-ink='true'] .pp-toast,
+:root[data-high-ink='true'] .pp-coin { box-shadow: inset 0 0 0 2px var(--paper-edge), var(--sh-1); }
+:root[data-high-ink='true'] .pp-btn[data-variant='ghost'] { box-shadow: var(--btn-lift) var(--btn-lift) 0 0 var(--ink), inset 0 0 0 2px var(--ink); }
+:root[data-high-ink='true'] .pp-tab { box-shadow: inset 0 0 0 2px var(--paper-edge); }
+:root[data-high-ink='true'] .pp-toggle__hint,
+:root[data-high-ink='true'] .pp-label,
+:root[data-high-ink='true'] .pp-toast__note { color: var(--ink); }
+
+/* an icon-only button stays square and never squashes its glyph */
+.pp-btn--icon { --btn-pad-x: 0; --btn-pad-y: 0; width: var(--touch-min); min-width: var(--touch-min); }
+.pp-btn--icon[data-size='sm'] { width: 34px; min-width: 34px; }
+.pp-btn--icon[data-size='lg'] { width: 54px; min-width: 54px; min-height: 54px; }
+
+/* Sheet: the Paper root becomes the flex column, its body the scroll region */
+.pp-sheet > .pp-paper__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pp-sheet-host { padding-left: var(--safe-l); padding-right: var(--safe-r); }
+.pp-scrim[data-closing='true'] { animation: pp-fade-out var(--t-base) var(--ease-crisp) both; }
+@keyframes pp-fade-out { from { opacity: 1 } to { opacity: 0 } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   20. TEXT ON THE DESK
+   `--ink-soft` clears 4.5:1 on paper-0/1/2 only. Anything set directly on the
+   desk (paper-3/4) must use full ink — this switches a whole subtree over.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.pp-on-desk { color: var(--ink); }
+.pp-on-desk .pp-label,
+.pp-on-desk .pp-toggle__hint,
+.pp-on-desk .pp-sheet__note { color: var(--ink); }
