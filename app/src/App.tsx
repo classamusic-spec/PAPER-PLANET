@@ -3,6 +3,7 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigator, type Route } from './shell/Navigator'
 import { ErrorBoundary } from './shell/ErrorBoundary'
+import { Boot } from './shell/boot'
 import type { ScreenId } from './contracts'
 
 /* Screens are code-split: the Studio's engine should not be in the boot bundle. */
@@ -45,7 +46,9 @@ function initialScreen(): ScreenId {
 export default function App() {
   return (
     <ErrorBoundary>
-      <Navigator initial={initialScreen()}>{renderScreen}</Navigator>
+      <Boot>
+        <Navigator initial={initialScreen()}>{renderScreen}</Navigator>
+      </Boot>
     </ErrorBoundary>
   )
 }
