@@ -229,8 +229,18 @@
 .pp-focus:focus:not(:focus-visible) { outline: none; }
 
 /* every control gets a real 44pt target even when it is drawn smaller */
-.pp-target { position: relative; }
-.pp-target::before {
+.pp-target,
+.pp-btn,
+.pp-chip,
+.pp-planet__biome,
+.pp-select__washirow,
+.pp-reveal__rename { position: relative; }
+.pp-target::before,
+.pp-btn::before,
+.pp-chip::before,
+.pp-planet__biome::before,
+.pp-select__washirow::before,
+.pp-reveal__rename::before {
   content: '';
   position: absolute;
   top: 50%;

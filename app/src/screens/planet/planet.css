@@ -215,7 +215,7 @@
   z-index: var(--z-hud);
 }
 .pp-planet__biome {
-  min-height: 34px;
+  min-height: var(--touch-min);
   padding: var(--s-1) var(--s-3);
   border: none;
   border-radius: var(--r-pill);

@@ -113,11 +113,14 @@
 
 .pp-select__filters {
   display: flex;
+  align-items: center;
   gap: var(--s-2);
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: var(--s-3);
 }
+/* overflow clips the invisible expander, so these are sized for real */
+.pp-select__filters .pp-chip { min-height: var(--touch-min); padding-inline: var(--s-3); }
 .pp-select__filters::-webkit-scrollbar { display: none; }
 
 .pp-select__grid {

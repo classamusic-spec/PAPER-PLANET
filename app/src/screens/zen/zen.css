@@ -90,6 +90,7 @@
 }
 
 .pp-zen__beds { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.pp-zen__beds .pp-chip { min-height: var(--touch-min); padding-inline: var(--s-3); }
 .pp-zen__pick { margin-top: var(--s-5); }
 .pp-zen__pick-label {
   display: flex;
