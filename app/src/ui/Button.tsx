@@ -53,9 +53,9 @@ function renderIcon(icon: IconName | ReactNode, size: ButtonSize): ReactNode {
 }
 
 /**
- * Every Button keeps a 44×44pt touch target even at `size="sm"`, where the card
- * is drawn 34px tall — the extra area is claimed by a pseudo-element, so the
- * layout never has to make room for it.
+ * Every Button is a 44×44pt touch target, `size="sm"` included: `.pp-target`
+ * reserves the room in the element's own box, not only in a pseudo-element, so
+ * a finger, a focus ring and an audit all agree on where the control is.
  */
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   {

@@ -1,7 +1,7 @@
 /* PAPER PLANET — the cold open: a lit desk, one sheet, a crane, and a way in. */
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button, Crane, IconButton, Icon, Logotype, Paper, Reveal } from '../../ui'
+import { Button, Crane, IconButton, Icon, Logotype, Paper, Reveal, article, plural, spellCap } from '../../ui'
 import { useNavigation } from '../../shell/Navigator'
 import {
   FLAG,
@@ -12,6 +12,7 @@ import {
   useDaily,
   useHasSeen,
   useKamiCount,
+  usePractice,
   useSettings,
 } from '../../systems'
 import { getSpecies } from '../../content'
@@ -66,6 +67,7 @@ export default function TitleScreen() {
   const kamiCount = useKamiCount()
   const collection = useCollection()
   const daily = useDaily()
+  const practice = usePractice()
   const activeWashi = useActiveWashi()
   const onboarded = useHasSeen(FLAG.onboarded)
 
@@ -113,14 +115,36 @@ export default function TitleScreen() {
   const inSequence = beat !== null
   const active = inSequence ? beats[Math.min(beat, beats.length - 1)] : null
 
-  /* ── the line under the logotype, for someone coming back ───────────────── */
-  const welcome = useMemo(() => {
+  /* ── what is true, and what is waiting ──────────────────────────────────
+     The save has always known the streak, the practice record and what today's
+     fold is; none of it ever reached the player. Two lines, both plain facts:
+     the standing one, then today's. Nothing counts down, nothing is at risk. */
+  const today = useMemo<{ standing: string; waiting: string } | null>(() => {
     if (!returning) return null
-    const kamiLine = kamiCount === 1 ? 'One Kami on your planet.' : `${kamiCount} Kami on your planet.`
-    if (daily.done) return `${kamiLine} Today's fold is done — the paper will keep.`
-    if (dailySpecies) return `${kamiLine} Today's fold is ${article(dailySpecies.name)}.`
-    return kamiLine
-  }, [returning, kamiCount, daily.done, dailySpecies])
+
+    const standing =
+      daily.streak >= 2
+        ? `${spellCap(daily.streak)} days in a row.`
+        : daily.streak === 1
+          ? 'One day so far.'
+          : `${spellCap(kamiCount)} Kami on your planet.`
+
+    const waiting = daily.done
+      ? practice.streak > 0 && !practice.doneToday
+        ? "Today's fold is made. The Practice Sheet is still on the desk."
+        : "Today's fold is made. The paper will keep."
+      : dailySpecies
+        ? `Today's fold is ${article(dailySpecies.name)}.`
+        : 'A new fold is waiting.'
+
+    return { standing, waiting }
+  }, [returning, kamiCount, daily.done, daily.streak, dailySpecies, practice.streak, practice.doneToday])
+
+  /* The Fold Journal's unclaimed tiers are computed and shown nowhere outside a
+     tab in the Shop, and this is the natural place to say so. It is left out
+     on purpose: `ShopScreen` hard-codes its opening tab, so the line would land
+     a player who was told about earned free rewards on a subscription pitch.
+     Once the Shop reads a `tab` route param, one line here surfaces it. */
 
   return (
     <div className="pp-title pp-desk pp-on-desk" data-phase={inSequence ? 'open' : 'hero'}>
@@ -158,7 +182,12 @@ export default function TitleScreen() {
             ) : (
               <>
                 <Logotype className="pp-title__logo" mark markSize={72} />
-                {welcome ? <p className="pp-title__welcome">{welcome}</p> : null}
+                {today ? (
+                  <div className="pp-title__today">
+                    <p className="pp-title__standing">{today.standing}</p>
+                    <p className="pp-title__waiting">{today.waiting}</p>
+                  </div>
+                ) : null}
               </>
             )}
           </Paper>
@@ -227,7 +256,9 @@ export default function TitleScreen() {
               <p className="pp-title__stat pp-num">
                 <Icon name="codex" size="sm" />
                 {collection.collected} of {collection.total} folds
-                {daily.streak > 1 ? ` · ${daily.streak} days` : ''}
+                {practice.streak > 0
+                  ? ` · ${practice.streak} ${plural(practice.streak, 'day', 'days')} of practice`
+                  : ''}
               </p>
             ) : (
               <p className="pp-title__stat">Fold. Breathe. Come alive.</p>
@@ -237,9 +268,4 @@ export default function TitleScreen() {
       </footer>
     </div>
   )
-}
-
-/** "a Heron" / "an Owl" — small, but it is the difference between craft and CMS. */
-function article(name: string): string {
-  return /^[aeiou]/i.test(name) ? `an ${name}` : `a ${name}`
 }

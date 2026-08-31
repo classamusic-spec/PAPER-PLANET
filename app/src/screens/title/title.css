@@ -1,6 +1,7 @@
 /* PAPER PLANET — the title: a lamp-lit desk with one sheet on it. */
 
 .pp-title {
+  --crane-w: clamp(84px, 26vw, 132px);
   position: absolute;
   inset: 0;
   display: grid;
@@ -117,23 +118,59 @@
   width: 100%;
 }
 
-.pp-title__welcome {
-  margin: 0;
+
+/* ── what is true, and what is waiting ───────────────────────────────────
+   A hairline rules the logotype off from the day's news, the way a broadside
+   separates the masthead from the notice under it. The right column is kept
+   clear of the crane so nothing is ever printed underneath a wing. */
+.pp-title__today {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-1);
+  width: 100%;
   max-width: 30ch;
+  margin-top: var(--s-1);
+}
+
+.pp-title__standing {
+  margin: 0;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 700;
+  font-size: var(--fs-title);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  text-wrap: balance;
+}
+
+.pp-title__waiting {
+  margin: 0;
   font-size: var(--fs-body);
   line-height: var(--lh-snug);
   color: var(--ink-soft);
   text-wrap: balance;
 }
 
-/* the crane sits on the desk, half-behind the card's lower-right corner */
+/* The crane stands on the desk *below* the card's lower-right corner, its head
+   just breaking the edge. It used to sit high enough to print itself across
+   whatever the card's last line happened to be — the tagline on a short card,
+   the day's news on a tall one. Down here it tracks the card's bottom edge, so
+   it clears the type however much the card has to say. */
 .pp-title__crane {
   justify-self: end;
   align-self: end;
   z-index: 2;
-  width: clamp(84px, 26vw, 132px);
+  width: var(--crane-w);
   height: auto;
-  transform: translate(16%, 48%) rotate(-3deg);
+  /* `translate`/`rotate` longhands, not `transform`: the breathe keyframes set
+     `transform: scale()`, which was silently discarding the offset written here
+     — which is why the crane has been sitting on top of the type. The longhands
+     compose with the animation instead of losing to it. */
+  translate: 8% 88%;
+  rotate: -3deg;
   filter: drop-shadow(6px 10px 10px rgba(var(--shadow-tint), 0.34));
   pointer-events: none;
 }
@@ -195,13 +232,18 @@
   width: 100%;
 }
 
+/* Four ways in, so the grid is two by two — three columns left one button
+   stranded on a row of its own. */
 .pp-title__ways {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--s-2);
   width: 100%;
 }
 .pp-title__ways .pp-btn { width: 100%; }
+@media (min-width: 768px) {
+  .pp-title__ways { grid-template-columns: repeat(4, 1fr); }
+}
 
 .pp-title__stat {
   display: flex;
@@ -232,7 +274,7 @@
   }
   .pp-title__card { padding: var(--s-5) var(--s-5); }
   .pp-title__logo { --logo-size: clamp(1.8rem, 5.4vw, 2.6rem); }
-  .pp-title__crane { width: clamp(64px, 13vw, 96px); }
+  .pp-title { --crane-w: clamp(64px, 13vw, 96px); }
   .pp-title__acts {
     width: min(100%, 380px);
     padding: var(--s-4) max(var(--s-6), var(--safe-r)) var(--s-4) var(--s-3);
@@ -248,7 +290,7 @@
     padding-top: var(--s-10);
   }
   .pp-title__acts { width: min(100%, 480px); gap: var(--s-4); }
-  .pp-title__crane { width: clamp(120px, 16vw, 176px); }
+  .pp-title { --crane-w: clamp(120px, 16vw, 176px); }
   .pp-title__logo { --logo-size: clamp(3rem, 6.6vw, 4.4rem); }
 }
 
@@ -260,6 +302,6 @@
 
 /* ── high ink: the card gets a firm cut edge, the motes step back ────────── */
 :root[data-high-ink='true'] .pp-mote { opacity: 0.12 !important; }
-:root[data-high-ink='true'] .pp-title__welcome,
+:root[data-high-ink='true'] .pp-title__waiting,
 :root[data-high-ink='true'] .pp-title__note { color: var(--ink); }
 :root[data-high-ink='true'] .pp-title__stat { opacity: 1; }

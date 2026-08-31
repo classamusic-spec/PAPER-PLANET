@@ -31,7 +31,9 @@ export interface SpeciesCardProps {
 function SpeciesCardBase({ row, selected, onSelect }: SpeciesCardProps) {
   const { species, folds, tierLabel, locked, golden } = row
   const seen = folds > 0
-  const state = seen ? tierLabel : locked ? 'Locked' : 'Ready to fold'
+  /* The tier alone cannot tell Adept-at-three from Adept-at-nine, and the count
+     is the thing that says how close the next one is. */
+  const state = seen ? `${tierLabel} · ×${folds}` : locked ? 'Locked' : 'Ready to fold'
   const label = seen
     ? `${species.name}. ${tierLabel}, folded ${folds} ${folds === 1 ? 'time' : 'times'}.`
     : locked

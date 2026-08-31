@@ -37,6 +37,22 @@
 }
 
 .pp-codex__progress { padding: var(--s-3) var(--s-5) 0; flex: 0 0 auto; }
+
+/* ── the contents page: how much of the book is written ──────────────────── */
+.cx-progress { display: block; }
+.cx-progress__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: var(--s-2) 0 0;
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  line-height: var(--lh-snug);
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+.cx-progress__note .pp-icon { flex: 0 0 auto; margin-top: 1px; color: var(--matcha-deep); }
+
 .pp-codex__filters {
   padding: var(--s-3) var(--s-4) var(--s-2);
   flex: 0 0 auto;
@@ -301,3 +317,7 @@
 
 .cx-page { padding: var(--s-4); }
 .cx-page__head { text-align: center; margin-bottom: var(--s-3); }
+
+/* ── high ink ────────────────────────────────────────────────────────────── */
+:root[data-high-ink='true'] .cx-progress__note,
+:root[data-high-ink='true'] .cx-card__state { color: var(--ink); }

@@ -3,12 +3,13 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { BiomeId, Species } from '../../contracts'
 import { allBiomes, allSpecies, MASTERY_LABEL } from '../../content'
-import { useCollection, useGame } from '../../systems'
+import { useBiomes, useCollection, useGame } from '../../systems'
 import { masteryFor, evaluateUnlock, unlockContextFrom } from '../../systems'
 import { audio } from '../../audio'
 import { useNavigation } from '../../shell/Navigator'
-import { Icon, IconButton, Meter, Paper, Sheet, Tabs } from '../../ui'
+import { Icon, IconButton, Paper, Sheet, Tabs, plural } from '../../ui'
 import { ShareButton } from '../../features/share'
+import CodexProgress from './Progress'
 import SpeciesCard, { type CodexRow } from './SpeciesCard'
 import SpeciesDetail from './SpeciesDetail'
 import { useMedia } from './useMedia'
@@ -19,6 +20,7 @@ type Filter = 'all' | BiomeId
 export default function CodexScreen() {
   const nav = useNavigation()
   const summary = useCollection()
+  const opened = useBiomes()
   const wide = useMedia('(min-width: 900px)')
   const [filter, setFilter] = useState<Filter>('all')
   const [selected, setSelected] = useState<string | null>(null)
@@ -91,15 +93,15 @@ export default function CodexScreen() {
         <div className="pp-codex__title">
           <h1>The Codex</h1>
           <p>
-            {summary.collected} of {summary.total} folds ·{' '}
-            {summary.kami} {summary.kami === 1 ? 'Kami' : 'Kami'} on your planet
+            {summary.collected} of {summary.total} folds · {summary.kami}{' '}
+            {plural(summary.kami, 'Kami', 'Kami')} on your planet
           </p>
         </div>
         <div className="pp-codex__spacer" />
       </header>
 
       <div className="pp-codex__progress">
-        <Meter value={summary.ratio} label="Collection" caption={`${summary.collected} / ${summary.total}`} accent="matcha" ticks />
+        <CodexProgress summary={summary} biomes={biomes} opened={opened} filter={filter} />
       </div>
 
       <div className="pp-codex__filters">

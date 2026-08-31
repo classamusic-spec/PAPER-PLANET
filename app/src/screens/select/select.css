@@ -81,6 +81,71 @@
   margin: 0 0 var(--s-3);
 }
 
+/* ── the fold nearest its next tier ──────────────────────────────────────
+   A slip of paper laid under the Daily Fold, not a second lantern: one sheet
+   lower, cut rather than deckled, and the meter is the only dye on it. */
+.pp-select__mastery {
+  display: block;
+  width: 100%;
+  min-height: var(--touch-min);
+  margin-bottom: var(--s-4);
+  padding: var(--s-3);
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pp-select__mastery .pp-paper__body {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+}
+.pp-select__mastery-mark {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: clamp(52px, 15vw, 68px);
+  aspect-ratio: 1;
+}
+.pp-select__mastery-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pp-select__mastery-name {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-body-l);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+}
+.pp-select__mastery-opens {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  line-height: var(--lh-snug);
+  color: var(--ink-soft);
+  text-wrap: pretty;
+}
+/* Capped, or on a tablet the strip stretches it into a hairline a metre long. */
+.pp-select__mastery-meter { display: block; max-width: 420px; margin-top: var(--s-2); }
+
+/* the tally stamped in the corner of a fold you have made before */
+.pp-select__tally {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: 0.02em;
+  color: var(--ink-faint);
+}
+
 .pp-select__washi {
   display: flex;
   align-items: center;
@@ -149,6 +214,7 @@
 }
 .pp-select__card:disabled { cursor: default; opacity: 0.86; }
 .pp-select__mark {
+  position: relative;
   display: grid;
   place-items: center;
   aspect-ratio: 1;
@@ -194,3 +260,9 @@
 .pp-select__washirow.is-active { background: var(--paper-2); }
 .pp-select__washimeta { flex: 1 1 auto; min-width: 0; }
 .pp-select__washifoot { display: flex; justify-content: center; margin-top: var(--s-4); }
+
+/* ── high ink: the quiet lines come up to full ink ───────────────────────── */
+:root[data-high-ink='true'] .pp-select__mastery-opens,
+:root[data-high-ink='true'] .pp-select__tally,
+:root[data-high-ink='true'] .pp-select__state,
+:root[data-high-ink='true'] .pp-select__daily-note { color: var(--ink); }

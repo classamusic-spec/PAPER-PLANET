@@ -235,6 +235,13 @@
 .pp-planet__biome,
 .pp-select__washirow,
 .pp-reveal__rename { position: relative; }
+
+/* The ::before below has always claimed 44×44 of *hit* area, which is what a
+   finger meets. It is not what an audit — or a browser's own focus ring, or a
+   pointer-coarse heuristic — measures: those read the element's own box. So
+   anything that calls itself a target now reserves the room for real. Paint is
+   unaffected; a component that draws a smaller card still draws it. */
+.pp-target { min-width: var(--touch-min); min-height: var(--touch-min); }
 .pp-target::before,
 .pp-btn::before,
 .pp-chip::before,
@@ -326,7 +333,7 @@
 .pp-btn[data-block='true'] { display: flex; width: calc(100% - var(--btn-lift)); }
 
 /* sizes */
-.pp-btn[data-size='sm'] { --btn-pad-x: 14px; --btn-pad-y: 7px; --btn-fs: var(--fs-label); --btn-lift: 2px; --btn-radius: var(--r-sm); min-height: 34px; }
+.pp-btn[data-size='sm'] { --btn-pad-x: 14px; --btn-pad-y: 7px; --btn-fs: var(--fs-label); --btn-lift: 2px; --btn-radius: var(--r-md); }
 .pp-btn[data-size='lg'] { --btn-pad-x: 28px; --btn-pad-y: 16px; --btn-fs: var(--fs-body-l); --btn-lift: 4px; --btn-radius: var(--r-lg); }
 
 /* variants */
@@ -993,7 +1000,7 @@ button.pp-chip:active { transform: rotate(var(--pp-tilt, 0deg)) scale(0.96); }
 
 /* an icon-only button stays square and never squashes its glyph */
 .pp-btn--icon { --btn-pad-x: 0; --btn-pad-y: 0; width: var(--touch-min); min-width: var(--touch-min); }
-.pp-btn--icon[data-size='sm'] { width: 34px; min-width: 34px; }
+.pp-btn--icon[data-size='sm'] { width: var(--touch-min); min-width: var(--touch-min); }
 .pp-btn--icon[data-size='lg'] { width: 54px; min-width: 54px; min-height: 54px; }
 
 /* Sheet: the Paper root becomes the flex column, its body the scroll region */

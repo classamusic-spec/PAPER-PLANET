@@ -53,3 +53,5 @@ export {
 export type { PaperCue, PaperCueDetail, CSSVars, Size } from './hooks'
 
 export { edgePath, stableTilt, mulberry32, hashSeed } from './paperShapes'
+
+export { spell, spellCap, plural, article } from './words'
