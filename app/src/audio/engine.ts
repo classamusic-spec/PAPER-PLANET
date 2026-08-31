@@ -37,8 +37,25 @@ export function equalPowerCurve(from: number, to: number, points = 64): Float32A
 const DEFAULT_VOLUMES: Record<AudioBus, number> = {
   master: 0.9,
   sfx: 1,
-  ambience: 0.5,
-  music: 0.34,
+  ambience: 0.3,
+  music: 0.28,
+}
+
+/**
+ * A hard ceiling on the beds, applied on top of the player's setting.
+ *
+ * Ambience is meant to sit *under* the paper — BRAND section 8 calls it a room
+ * tone, and the paper is the instrument. Tested on a phone it was competing
+ * with the creases instead of sitting behind them, so the bus is trimmed at
+ * source: even at a setting of 1.0 the bed stays a bed. The trim also reaches
+ * players whose saved level predates this change, which a default alone
+ * would not.
+ */
+const BUS_TRIM: Partial<Record<AudioBus, number>> = { ambience: 0.42, music: 0.6 }
+
+/** Player setting -> actual gain, with the bed trim folded in. */
+function busGain(bus: AudioBus, volume: number): number {
+  return Math.max(0, Math.min(1, volume)) * (BUS_TRIM[bus] ?? 1)
 }
 
 /** How far ambience and music drop while the player is folding. */
@@ -101,23 +118,25 @@ export class AudioEngine {
     master.gain.value = this.volumes.master
     master.connect(limiter)
 
+    // Raw gain node. The bed trim is applied at the bus nodes only, never on
+    // the duck stages, or it would be counted twice.
     const mk = (v: number): GainNode => {
       const g = ctx.createGain()
       g.gain.value = v
       return g
     }
 
-    const sfx = mk(this.volumes.sfx)
+    const sfx = mk(busGain('sfx', this.volumes.sfx))
     sfx.connect(master)
 
     const ambDuck = mk(1)
     ambDuck.connect(master)
-    const ambience = mk(this.volumes.ambience)
+    const ambience = mk(busGain('ambience', this.volumes.ambience))
     ambience.connect(ambDuck)
 
     const musicDuck = mk(1)
     musicDuck.connect(master)
-    const music = mk(this.volumes.music)
+    const music = mk(busGain('music', this.volumes.music))
     music.connect(musicDuck)
 
     this.ctx = ctx
@@ -273,7 +292,7 @@ export class AudioEngine {
     const ctx = this.ctx
     if (!ctx) return
     const node = bus === 'master' ? this.master : this.busNodes[bus]
-    if (node) ramp(node.gain, v, 0.14, ctx)
+    if (node) ramp(node.gain, busGain(bus, v), 0.14, ctx)
   }
 
   getBusVolume(bus: AudioBus): number {

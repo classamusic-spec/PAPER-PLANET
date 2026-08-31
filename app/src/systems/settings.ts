@@ -61,7 +61,7 @@ export function defaultSettings(env: SettingsEnv = browserEnv): Settings {
     highInk: false,
     assistMode: false,
     haptics: true,
-    volumes: { master: 0.9, sfx: 1, ambience: 0.62, music: 0.42 },
+    volumes: { master: 0.9, sfx: 1, ambience: 0.3, music: 0.28 },
     ambience: 'meadow',
     music: true,
     guides: true,
