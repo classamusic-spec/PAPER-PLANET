@@ -1,0 +1,109 @@
+/* PAPER PLANET — screen transitions. A sheet is laid onto a desk; it does not slide. */
+
+.pp-nav {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: var(--desk);
+  isolation: isolate;
+}
+
+.pp-screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--surface);
+  transform-origin: 50% 100%;
+  will-change: transform, opacity;
+}
+
+/* ── Forward: the new sheet is laid on top, arriving from the desk edge ────── */
+.pp-screen--entering.pp-screen--forward {
+  z-index: 2;
+  animation: pp-sheet-lay var(--t-page) var(--ease-settle) both;
+  box-shadow: var(--sh-4);
+}
+.pp-screen--leaving.pp-screen--forward {
+  z-index: 1;
+  animation: pp-sheet-under var(--t-page) var(--ease-paper) both;
+}
+
+/* ── Back: the top sheet is lifted away, revealing what was underneath ─────── */
+.pp-screen--entering.pp-screen--back {
+  z-index: 1;
+  animation: pp-sheet-resurface var(--t-page) var(--ease-paper) both;
+}
+.pp-screen--leaving.pp-screen--back {
+  z-index: 2;
+  animation: pp-sheet-lift var(--t-page) var(--ease-paper) both;
+  box-shadow: var(--sh-4);
+}
+
+.pp-screen--none {
+  animation: none;
+}
+
+@keyframes pp-sheet-lay {
+  from {
+    transform: translate3d(0, 12%, 0) rotate(1.2deg) scale(1.015);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pp-sheet-under {
+  from {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  to {
+    transform: scale(0.985);
+    filter: brightness(0.92);
+  }
+}
+
+@keyframes pp-sheet-lift {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(0, 14%, 0) rotate(-1deg);
+    opacity: 0;
+  }
+}
+
+@keyframes pp-sheet-resurface {
+  from {
+    transform: scale(0.985);
+    filter: brightness(0.92);
+  }
+  to {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* A sheet with motion disabled still gets a clean cross-dissolve. */
+@media (prefers-reduced-motion: reduce) {
+  .pp-screen--entering,
+  .pp-screen--leaving {
+    animation-duration: var(--t-quick) !important;
+  }
+  @keyframes pp-sheet-lay {
+    from { opacity: 0; transform: none; }
+    to { opacity: 1; transform: none; }
+  }
+  @keyframes pp-sheet-lift {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: none; }
+  }
+  @keyframes pp-sheet-under { from, to { transform: none; filter: none; } }
+  @keyframes pp-sheet-resurface { from, to { transform: none; filter: none; } }
+}

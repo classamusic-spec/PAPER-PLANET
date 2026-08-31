@@ -1,0 +1,61 @@
+/* PAPER PLANET — the crash screen. Still paper, even when it breaks. */
+
+.pp-crash {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  padding: calc(var(--s-8) + var(--safe-t)) var(--s-6) calc(var(--s-8) + var(--safe-b));
+  background: var(--surface);
+  color: var(--ink);
+  text-align: center;
+}
+.pp-crash__art {
+  width: min(180px, 42vw);
+  filter: drop-shadow(var(--sh-2));
+  transform: rotate(-2deg);
+}
+.pp-crash__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-display-m);
+  font-weight: 800;
+  letter-spacing: var(--tracking-display);
+  margin: 0;
+}
+.pp-crash__body {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  max-width: 34ch;
+  margin: 0;
+}
+.pp-crash__btn {
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-body);
+  color: var(--paper-0);
+  background: var(--beni);
+  border: none;
+  border-radius: var(--r-md);
+  padding: var(--s-3) var(--s-6);
+  min-height: var(--touch-min);
+  cursor: pointer;
+  box-shadow: var(--sh-card);
+  transition: transform var(--t-tap) var(--ease-paper), box-shadow var(--t-tap) var(--ease-paper);
+}
+.pp-crash__btn:active {
+  transform: translate(2px, 3px);
+  box-shadow: var(--sh-press);
+}
+.pp-crash__detail {
+  font-size: var(--fs-micro);
+  color: var(--ink-faint);
+  max-width: 90vw;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  margin: 0;
+}
