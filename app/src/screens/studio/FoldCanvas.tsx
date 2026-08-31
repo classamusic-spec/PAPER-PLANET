@@ -21,6 +21,7 @@ import {
   type GestureRecogniser,
   type GestureState,
 } from '../../shell/gestures'
+import { landmarkAccuracy, landmarkFor, REACH, type Landmark } from '../../content/landmarks'
 
 /** Release above this and the fold completes itself; below and it springs back. */
 const COMMIT_THRESHOLD = 0.68
@@ -37,6 +38,12 @@ export interface FoldCanvasHandle {
   refit(): void
   /** Auto-perform the current step — assist mode and the "show me" hint. */
   demonstrate(): void
+  /**
+   * The last rendered frame, or null before the first paint. Read, never held:
+   * the engine reuses these arrays between frames. The coach uses it to trace
+   * the real crease on the real model rather than miming across the sheet.
+   */
+  frame(): PaperFrame | null
 }
 
 export interface FoldCanvasProps {
@@ -76,6 +83,12 @@ export interface FoldCanvasProps {
  */
 interface StepRef {
   hint: { from: Vec2; to: Vec2 } | null
+  /**
+   * The step's reference — what meets what — or null when the move has none
+   * (a flip, a press, a free-form shaping fold). Frozen with the anchors,
+   * because it decides how the gesture is scored.
+   */
+  landmark: Landmark | null
   axisLen: number
   /**
    * True when the authored hint collapsed on screen and we synthesised one
@@ -144,9 +157,13 @@ function progressFor(step: FoldStep, s: GestureState, ref: StepRef): number {
 /**
  * How cleanly the gesture tracked what the step asked for, 0..1.
  *
- * For a fold, that is how little the finger wandered off the hint vector. For a
- * burnish, it is how evenly the rub was distributed. This is the only "score" in
- * the game and it never fails you — it just decides how crisp the paper looks.
+ * Where the step has a landmark — a corner that has to arrive somewhere exact —
+ * this is the real measure: did you carry it there? See content/landmarks.ts.
+ * Where it does not (a shaping fold, a pull), it falls back to how little the
+ * finger wandered off the hint vector.
+ *
+ * Either way this is the only "score" in the game and it never fails you: it
+ * decides how crisp the paper looks, and BRAND section 12 floors the reward.
  */
 function accuracyFor(step: FoldStep, s: GestureState, ref: StepRef): number {
   if (step.gesture === 'rub') {
@@ -157,6 +174,9 @@ function accuracyFor(step: FoldStep, s: GestureState, ref: StepRef): number {
   }
   const hint = ref.hint
   if (!hint) return 0.8
+  if (ref.landmark) {
+    return landmarkAccuracy([hint.to[0] - hint.from[0], hint.to[1] - hint.from[1]], [s.dx, s.dy])
+  }
   const drift = Math.abs(perpendicularTravel(s, hint))
   const span = Math.hypot(hint.to[0] - hint.from[0], hint.to[1] - hint.from[1]) || 1
   return Math.max(0, Math.min(1, 1 - drift / (span * 0.55)))
@@ -194,8 +214,10 @@ export default function FoldCanvas({
   const committedRef = useRef(false)
   const dprRef = useRef(1)
   const fillRef = useRef(fill ?? 0.82)
-  const stepRefRef = useRef<StepRef>({ hint: null, axisLen: 200, synthesised: false })
+  const stepRefRef = useRef<StepRef>({ hint: null, axisLen: 200, synthesised: false, landmark: null })
   const grabbedRef = useRef(false)
+  /** Whether the current step has a reference worth drawing a mark for. */
+  const landmarkRef = useRef(false)
 
   stepRef.current = stepIndex
   completeRef.current = complete
@@ -204,6 +226,7 @@ export default function FoldCanvas({
   fillRef.current = fill ?? 0.82
 
   const step: FoldStep | undefined = recipe.steps[stepIndex]
+  landmarkRef.current = step ? landmarkFor(step) !== null : false
 
   /* ── engine bootstrap ─────────────────────────────────────────────────── */
   useEffect(() => {
@@ -360,6 +383,9 @@ export default function FoldCanvas({
           hint,
           axisLen: axis ? Math.hypot(axis.to[0] - axis.from[0], axis.to[1] - axis.from[1]) : 200,
           synthesised,
+          // A synthesised hint no longer points at the landing point, so the
+          // reference cannot be scored against it — fall back to the proxy.
+          landmark: synthesised ? null : landmarkFor(recipe.steps[stepRef.current]),
         }
         // Landing on the handle is an unambiguous "I am folding this".
         const anchor = hint?.from
@@ -461,7 +487,6 @@ export default function FoldCanvas({
       recRef.current = null
       gestureRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipe, assist, commit, onProgress, onRub])
 
   const recRef = useRef<GestureRecogniser | null>(null)
@@ -532,7 +557,15 @@ export default function FoldCanvas({
       if (import.meta.env.DEV) {
         ;(window as unknown as { __ppFrame?: PaperFrame }).__ppFrame = frame
       }
-      paint(ctx, frame, dprRef.current, guidesRef.current && !completeRef.current, grabbedRef.current, progressRef.current)
+      paint(
+        ctx,
+        frame,
+        dprRef.current,
+        guidesRef.current && !completeRef.current,
+        grabbedRef.current,
+        progressRef.current,
+        landmarkRef.current,
+      )
     }
 
     rafRef.current = requestAnimationFrame(tick)
@@ -548,6 +581,7 @@ export default function FoldCanvas({
         settleRef.current = { from: progressRef.current, to: 1, t0: performance.now() }
         pendingQuality.current = 0.7
       },
+      frame: () => frameRef.current,
     }),
     [resize],
   )
@@ -623,6 +657,7 @@ function paint(
   guides: boolean,
   grabbed: boolean,
   progress: number,
+  landmark: boolean,
 ) {
   const { canvas } = ctx
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -738,6 +773,44 @@ function paint(
     ctx.fill()
 
     ctx.restore()
+
+    /* The reference mark. Where a step has a landmark, the destination is not
+       "somewhere over there" — it is an exact place the corner has to arrive,
+       so it gets a mark of its own that closes as the two meet. This is the
+       matched-tick convention from real diagrams, doing the job it does there:
+       telling you what to watch, not just which way to pull. */
+    if (landmark) {
+      const met = Math.min(1, progress / REACH)
+      ctx.save()
+      ctx.translate(h.to[0], h.to[1])
+      ctx.globalAlpha = 0.5 + 0.5 * met
+      ctx.strokeStyle = met > 0.98 ? '#7E9E7B' : 'rgba(46,36,56,0.6)'
+      ctx.lineWidth = 2.5
+      ctx.lineCap = 'round'
+      // The ring draws itself closed as the corner comes in.
+      ctx.setLineDash(met > 0.98 ? [] : [4, 5])
+      ctx.beginPath()
+      ctx.arc(0, 0, 13, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.setLineDash([])
+      // Two ticks across the mark: the origami sign for "these are the same".
+      const tick = 5 + 3 * met
+      for (const a of [-Math.PI / 4, Math.PI / 4]) {
+        const cx = Math.cos(a)
+        const cy = Math.sin(a)
+        ctx.beginPath()
+        ctx.moveTo(cx * 13 - cy * tick, cy * 13 + cx * tick)
+        ctx.lineTo(cx * 13 + cy * tick, cy * 13 - cx * tick)
+        ctx.stroke()
+      }
+      if (met > 0.98) {
+        ctx.fillStyle = 'rgba(126,158,123,0.28)'
+        ctx.beginPath()
+        ctx.arc(0, 0, 13, 0, Math.PI * 2)
+        ctx.fill()
+      }
+      ctx.restore()
+    }
 
     /* The handle. This is the thing you actually put a finger on, so it is
        drawn at a real thumb's size, says when it is held, and carries the

@@ -189,7 +189,12 @@ export function paintKami(
 ): Rect {
   const b = artBounds(art)
   const scale = Math.min(box.w / b.w, box.h / b.h)
-  const drawn = fitKami(art, box)
+  const drawn: Rect = {
+    x: box.x + (box.w - b.w * scale) / 2,
+    y: box.y + (box.h - b.h * scale) / 2,
+    w: b.w * scale,
+    h: b.h * scale,
+  }
 
   ctx.save()
   ctx.translate(drawn.x, drawn.y)

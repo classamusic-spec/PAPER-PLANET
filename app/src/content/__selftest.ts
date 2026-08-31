@@ -29,6 +29,15 @@ import {
   tierOf,
   type FoldTier,
 } from './recipes'
+import {
+  REACH,
+  landmarkAccuracy,
+  landmarkFor,
+  landmarkVerdict,
+  nameAxis,
+  nameMaterialPoint,
+} from './landmarks'
+import { PT } from './recipes'
 import { SPECIES } from './species/index'
 import { WASHI, WASHI_PACKS } from './washi'
 import type { SpeciesDef, Surface } from './types'
@@ -564,6 +573,82 @@ for (const s of SPECIES) {
   baseTally.set(b, (baseTally.get(b) ?? 0) + 1)
 }
 line(`bases: ${[...baseTally.entries()].map(([b, n]) => `${b} x${n}`).join(', ')}`)
+
+/* ── landmarks: the references, and the score they replace a proxy with ──── */
+
+section('landmarks')
+{
+  let withRef = 0
+  let paperMoving = 0
+  const relTally = new Map<string, number>()
+
+  for (const def of SPECIES) {
+    for (const st of def.recipe.steps) {
+      const lm = landmarkFor(st)
+      const moves = !['flip', 'rotate', 'press', 'inflate'].includes(st.kind)
+      if (moves) paperMoving++
+      if (!lm) continue
+      withRef++
+      relTally.set(lm.relation, (relTally.get(lm.relation) ?? 0) + 1)
+
+      check(lm.line.length > 0 && lm.line.length < 70, `${def.id}/${st.id}: reference line is one readable clause (${lm.line.length}) — ${lm.line}`)
+      check(!/undefined|NaN|\[object/.test(lm.line), `${def.id}/${st.id}: reference line has no leaked internals`)
+      check(lm.tolerance > 0, `${def.id}/${st.id}: a landmark has a tolerance`)
+
+      // A reference that names the same thing twice teaches nothing.
+      if (lm.moving && lm.onto) {
+        const apart = Math.hypot(lm.moving.p[0] - lm.onto.p[0], lm.moving.p[1] - lm.onto.p[1])
+        check(apart > 1.5, `${def.id}/${st.id}: a landmark does not meet itself`)
+        check(lm.moving.label !== lm.onto.label, `${def.id}/${st.id}: the two ends are named differently`)
+      }
+      if (lm.axis && lm.relation === 'across' && lm.moving) {
+        const onAxis =
+          Math.hypot(lm.moving.p[0] - lm.axis.from[0], lm.moving.p[1] - lm.axis.from[1]) < 1.5 ||
+          Math.hypot(lm.moving.p[0] - lm.axis.to[0], lm.moving.p[1] - lm.axis.to[1]) < 1.5
+        check(!onAxis, `${def.id}/${st.id}: a point does not fold across a line it sits on`)
+      }
+      // Creaseless moves must never claim a reference.
+      check(moves, `${def.id}/${st.id}: only paper-moving steps carry a landmark`)
+    }
+  }
+
+  check(withRef > 150, `at least 150 steps carry a reference (got ${withRef})`)
+  check((relTally.get('meet') ?? 0) > 40, 'point-to-point references are the bulk of the strong cases')
+  check((relTally.get('onto-line') ?? 0) > 40, 'the classical bases resolve to "onto the diagonal"')
+
+  /* The naming vocabulary itself. */
+  check(nameMaterialPoint(PT.TL)?.label === 'Top-left corner', 'a corner is named as a corner')
+  check(nameMaterialPoint(PT.C)?.the === 'the centre', 'the centre is the centre')
+  check(nameMaterialPoint([500, 0])?.the === 'the middle of the top edge', 'an edge midpoint reads as one')
+  check(nameMaterialPoint([437, 291]) === null, 'a point that is nowhere in particular is not given a name')
+  check(nameAxis(PT.TL, PT.BR) === 'the diagonal', 'the diagonal has a word')
+  check(nameAxis(PT.BR, PT.TL) === 'the diagonal', 'and it reads the same from either end')
+  check(nameAxis(PT.ML, PT.MR) === 'the sideways centre line', 'so does the horizontal centre line')
+
+  /* The score. It must reward arrival and punish wandering — and never fail. */
+  const need: [number, number] = [200, 0]
+  check(landmarkAccuracy(need, [200, 0]) === 1, 'carrying the landmark all the way scores 1')
+  check(landmarkAccuracy(need, [200 * REACH, 0]) === 1, 'reaching the auto-commit line is already perfect')
+  check(
+    landmarkAccuracy(need, [260, 0]) === 1,
+    'overshooting is not a mistake — the paper stops where the crease says',
+  )
+  const short = landmarkAccuracy(need, [120, 0])
+  check(short > 0 && short < 1, `stopping short costs something but never everything (${short.toFixed(2)})`)
+  const wide = landmarkAccuracy(need, [200 * REACH, 40])
+  check(wide < 1, `wandering sideways costs something (${wide.toFixed(2)})`)
+  check(
+    landmarkAccuracy(need, [120, 0]) > landmarkAccuracy(need, [60, 0]),
+    'the shortfall is graded, not a cliff',
+  )
+  check(landmarkAccuracy(need, [0, 0]) >= 0, 'the score has a floor: there are no fail states')
+  check(landmarkAccuracy([0, 0], [10, 10]) === 0.8, 'a degenerate reference scores the neutral 0.8')
+  check(landmarkVerdict(1) === 'met' && landmarkVerdict(0.6) === 'close' && landmarkVerdict(0.1) === 'off',
+    'the verdict describes, it does not judge')
+
+  line(`${withRef} of ${paperMoving} paper-moving steps carry a reference`)
+  line([...relTally.entries()].map(([k, n]) => `${k} x${n}`).join(', '))
+}
 
 /* ── verdict ─────────────────────────────────────────────────────────────── */
 

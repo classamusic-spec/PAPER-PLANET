@@ -9,6 +9,7 @@ import { audio, haptics } from '../../audio'
 import { useNavigation, useRouteParams } from '../../shell/Navigator'
 import { Button, IconButton, Icon } from '../../ui'
 import FoldCanvas, { type FoldCanvasHandle } from './FoldCanvas'
+import { landmarkFor } from '../../content/landmarks'
 import FoldCoach from './FoldCoach'
 import { useFoldCoach, useLiveAnchors, type CoachTopic } from './coach'
 import { EMPTY_TALLY, meanQualityOf, recordStep, unfoldStep } from './session'
@@ -71,6 +72,7 @@ export default function StudioScreen() {
   const tally = useRef(EMPTY_TALLY)
 
   const step = recipe.steps[Math.min(stepIndex, total - 1)]
+  const landmark = useMemo(() => (step ? landmarkFor(step) : null), [step])
   const complete = stepIndex >= total
 
   const onStepComplete = useCallback((quality: number) => {
@@ -129,7 +131,7 @@ export default function StudioScreen() {
   })
 
   const coachOpen = coachLesson !== null
-  const liveAnchors = useLiveAnchors(coachOpen, stepIndex)
+  const liveAnchors = useLiveAnchors(coachOpen, stepIndex, handleRef)
 
   /* A finger on the paper is the answer to every lesson: the teacher steps back
      in the capture phase, before FoldCanvas has even seen the event. A mouse
@@ -233,6 +235,14 @@ export default function StudioScreen() {
 
       <div className="pp-studio__say" key={step?.id}>
         <p className="pp-studio__instruction">{step?.instruction}</p>
+        {/* The reference: what meets what. A diagram prints this as tick marks;
+            said aloud it is the difference between folding and guessing. */}
+        {landmark && (
+          <p className="pp-studio__ref">
+            <span className="pp-studio__reftick" aria-hidden="true" />
+            {landmark.line}
+          </p>
+        )}
         {step?.detail && <p className="pp-studio__detail">{step.detail}</p>}
       </div>
 

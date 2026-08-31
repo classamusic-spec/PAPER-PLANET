@@ -2,6 +2,7 @@
 .DS_Store
 .allscreens.mjs
 .audio-qa.mjs
+.coach-gestures.mjs
 .coach-shots.mjs
 .coach-test.mjs
 .content-audit.ts

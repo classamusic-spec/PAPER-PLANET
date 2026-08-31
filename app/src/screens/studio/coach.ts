@@ -9,9 +9,9 @@
  * on the sheet the demonstration happens. `FoldCoach.tsx` is the hand.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { GestureKind, Vec2 } from '../../contracts'
-import type { PaperFrame } from '../../engine'
+import type { FoldCanvasHandle } from './FoldCanvas'
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE LESSONS
@@ -551,21 +551,25 @@ export function restPhase(move: CoachMove): number {
 /**
  * Screen-space anchors for the current step.
  *
- * The Studio does not own the projection — FoldCanvas does — and its handle
- * exposes only `refit()` and `demonstrate()`. Where the canvas publishes its
- * frame, the ghost traces the real crease on the real model; where it does not,
- * `demoGeometry` plays the gesture across the middle of the sheet instead, which
- * still teaches the movement. One `onFrame` callback on FoldCanvas would make
- * the traced version the only version — see the note in the handover.
+ * The Studio does not own the projection — FoldCanvas does — so this reads the
+ * canvas handle's `frame()`, which hands back the last rendered frame. Polled
+ * rather than pushed: the ghost only needs the crease a few times a second, and
+ * a callback on every rAF tick would put React in the render loop for nothing.
+ *
+ * The frame's arrays are reused between renders, so the anchors are copied out
+ * on read and never retained.
  */
-export function useLiveAnchors(active: boolean, stepIndex: number): CoachAnchors | null {
+export function useLiveAnchors(
+  active: boolean,
+  stepIndex: number,
+  canvas: RefObject<FoldCanvasHandle | null>,
+): CoachAnchors | null {
   const [anchors, setAnchors] = useState<CoachAnchors | null>(null)
 
   useEffect(() => {
     if (!active) return
     const read = (): void => {
-      const frame = (window as unknown as { __ppFrame?: PaperFrame }).__ppFrame
-      const hint = frame?.hint ?? null
+      const hint = canvas.current?.frame()?.hint ?? null
       setAnchors((prev) => {
         if (!hint) return prev === null ? prev : null
         if (
@@ -583,7 +587,7 @@ export function useLiveAnchors(active: boolean, stepIndex: number): CoachAnchors
     read()
     const id = window.setInterval(read, 140)
     return () => window.clearInterval(id)
-  }, [active, stepIndex])
+  }, [active, stepIndex, canvas])
 
   /* Stale anchors are simply not handed out — no state to clear on the way. */
   return active ? anchors : null

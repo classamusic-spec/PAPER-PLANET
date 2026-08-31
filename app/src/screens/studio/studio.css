@@ -105,6 +105,44 @@
   margin: 0;
   text-wrap: balance;
 }
+/* The reference, set the way a diagram prints one: quiet, tracked, and marked
+   with the tick that means "these two are the same". */
+.pp-studio__ref {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: var(--lh-snug);
+  color: var(--ink-soft);
+  margin: var(--s-2) 0 0;
+  padding: var(--s-1) var(--s-3);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.pp-studio__reftick {
+  position: relative;
+  display: inline-block;
+  width: 11px;
+  height: 9px;
+  flex: none;
+  opacity: 0.72;
+}
+.pp-studio__reftick::before,
+.pp-studio__reftick::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1.5px;
+  height: 100%;
+  background: currentColor;
+  border-radius: 1px;
+}
+.pp-studio__reftick::before { left: 2px; }
+.pp-studio__reftick::after { right: 2px; }
+
 .pp-studio__detail {
   font-family: var(--font-text);
   font-size: var(--fs-body);

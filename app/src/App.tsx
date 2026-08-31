@@ -4,6 +4,7 @@ import { lazy, Suspense, type ReactNode } from 'react'
 import { Navigator, type Route } from './shell/Navigator'
 import { ErrorBoundary } from './shell/ErrorBoundary'
 import { Boot } from './shell/boot'
+import { ToastProvider } from './ui'
 import type { ScreenId } from './contracts'
 
 /* Screens are code-split: the Studio's engine should not be in the boot bundle. */
@@ -47,7 +48,11 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Boot>
-        <Navigator initial={initialScreen()}>{renderScreen}</Navigator>
+        {/* Every screen calls useToast(); without this the API is the documented
+            no-op and confirmations land nowhere. */}
+        <ToastProvider>
+          <Navigator initial={initialScreen()}>{renderScreen}</Navigator>
+        </ToastProvider>
       </Boot>
     </ErrorBoundary>
   )
