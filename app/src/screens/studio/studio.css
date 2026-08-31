@@ -1,0 +1,211 @@
+/* PAPER PLANET — The Studio. A lit desk, a sheet of paper, and nothing else. */
+
+.pp-studio {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  background: var(--paper-2);
+  overflow: hidden;
+  padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
+}
+
+/* The desk: a pool of light on a darker surround, so the paper is the subject. */
+.pp-studio__desk {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 78% 58% at 50% 46%, var(--paper-0) 0%, var(--paper-1) 46%, var(--paper-2) 78%, var(--paper-3) 100%);
+}
+
+.pp-studio > *:not(.pp-studio__desk) {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── header ───────────────────────────────────────────────────────────── */
+.pp-studio__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4) 0;
+}
+
+.pp-studio__back,
+.pp-studio__spacer {
+  width: var(--touch-min);
+  height: var(--touch-min);
+  flex: 0 0 auto;
+}
+
+.pp-studio__back {
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  color: var(--ink);
+  background: var(--paper-0);
+  border: none;
+  border-radius: var(--r-md);
+  box-shadow: var(--sh-card);
+  cursor: pointer;
+  transition: transform var(--t-tap) var(--ease-paper), box-shadow var(--t-tap) var(--ease-paper);
+}
+.pp-studio__back:active {
+  transform: translate(2px, 3px);
+  box-shadow: var(--sh-press);
+}
+
+/* Step pips are little folded chits laid in a row. */
+.pp-studio__steps {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pp-studio__pip {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--paper-3);
+  box-shadow: inset 0 0 0 1.5px rgba(46, 36, 56, 0.14);
+  transition:
+    background var(--t-base) var(--ease-paper),
+    transform var(--t-base) var(--ease-paper);
+}
+.pp-studio__pip.is-crease {
+  border-radius: 50%;
+}
+.pp-studio__pip.is-done {
+  background: var(--matcha);
+}
+.pp-studio__pip.is-now {
+  background: var(--beni);
+  transform: scale(1.35) !important;
+  box-shadow: inset 0 0 0 1.5px rgba(46, 36, 56, 0.24), 0 2px 5px rgba(62, 44, 30, 0.18);
+}
+
+/* ── the instruction ──────────────────────────────────────────────────── */
+.pp-studio__say {
+  text-align: center;
+  padding: var(--s-5) var(--s-6) var(--s-2);
+  animation: pp-say-in var(--t-slow) var(--ease-settle) both;
+}
+.pp-studio__instruction {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-size: var(--fs-display-m);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0;
+  text-wrap: balance;
+}
+.pp-studio__detail {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: var(--s-2) 0 0;
+  text-wrap: balance;
+}
+
+@keyframes pp-say-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── the arena ────────────────────────────────────────────────────────── */
+.pp-studio__arena {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: var(--s-2);
+}
+
+.pp-fold-canvas {
+  width: min(96vw, 58vh);
+  aspect-ratio: 1;
+  max-width: 620px;
+  cursor: grab;
+}
+.pp-fold-canvas:active {
+  cursor: grabbing;
+}
+.pp-fold-canvas__c {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* On a tablet the desk is wider than it is tall — give the paper more room. */
+@media (min-width: 768px) {
+  .pp-fold-canvas {
+    width: min(58vw, 74vh);
+  }
+}
+/* Landscape phone: the desk view. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .pp-studio {
+    grid-template-rows: auto 1fr auto;
+  }
+  .pp-studio__say {
+    padding: var(--s-2) var(--s-6) 0;
+  }
+  .pp-studio__instruction {
+    font-size: var(--fs-title);
+  }
+  .pp-studio__detail {
+    display: none;
+  }
+  .pp-fold-canvas {
+    width: min(52vh, 60vw);
+  }
+}
+
+/* ── footer ───────────────────────────────────────────────────────────── */
+.pp-studio__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-6) var(--s-5);
+}
+
+/* The meter fills like ink soaking into the paper, not like a loading bar. */
+.pp-studio__meter {
+  width: min(60%, 260px);
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--paper-3);
+  overflow: hidden;
+}
+.pp-studio__meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--beni), var(--kincha));
+  transform-origin: left center;
+  transition: transform 90ms linear;
+}
+
+.pp-studio__count {
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-studio__say {
+    animation-duration: var(--t-quick);
+  }
+}

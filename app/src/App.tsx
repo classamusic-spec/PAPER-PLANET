@@ -26,10 +26,26 @@ function renderScreen(route: Route): ReactNode {
   )
 }
 
+const SCREEN_IDS = Object.keys(screens) as ScreenId[]
+
+/**
+ * Deep link support: `?screen=studio`. The PWA manifest's shortcuts use this to
+ * drop the player straight into the Daily Fold or Zen Mode.
+ */
+function initialScreen(): ScreenId {
+  try {
+    const want = new URLSearchParams(window.location.search).get('screen')
+    if (want && (SCREEN_IDS as string[]).includes(want)) return want as ScreenId
+  } catch {
+    /* malformed URL — fall through to the title */
+  }
+  return 'title'
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
-      <Navigator initial="title">{renderScreen}</Navigator>
+      <Navigator initial={initialScreen()}>{renderScreen}</Navigator>
     </ErrorBoundary>
   )
 }

@@ -59,20 +59,25 @@ export interface FoldCanvasProps {
   handleRef?: RefObject<FoldCanvasHandle | null>
 }
 
+/**
+ * A frozen snapshot of the step's screen-space anchors.
+ *
+ * This must NOT be re-read from the live frame each move. The hint anchors are
+ * attached to the paper, so they travel as it folds: measuring against them
+ * live shrinks the reference vector, which inflates progress, which folds it
+ * further — a runaway that snaps any fold shut on the first few pixels.
+ */
+interface StepRef {
+  hint: { from: Vec2; to: Vec2 } | null
+  axisLen: number
+}
+
 /** Which gesture a step wants, and how to score progress for it. */
-function progressFor(
-  step: FoldStep,
-  s: GestureState,
-  frame: RenderFrame,
-): number {
-  const hint = frame.hint
+function progressFor(step: FoldStep, s: GestureState, ref: StepRef): number {
+  const hint = ref.hint
   switch (step.gesture) {
-    case 'rub': {
-      const ax = frame.axis
-      if (!ax) return 0
-      const len = Math.hypot(ax.to[0] - ax.from[0], ax.to[1] - ax.from[1])
-      return rubProgress(s, len)
-    }
+    case 'rub':
+      return rubProgress(s, ref.axisLen)
     case 'pinch-in':
       return pinchProgress(s, 'in')
     case 'pinch-out':
@@ -96,14 +101,14 @@ function progressFor(
  * burnish, it is how evenly the rub was distributed. This is the only "score" in
  * the game and it never fails you — it just decides how crisp the paper looks.
  */
-function accuracyFor(step: FoldStep, s: GestureState, frame: RenderFrame): number {
+function accuracyFor(step: FoldStep, s: GestureState, ref: StepRef): number {
   if (step.gesture === 'rub') {
     // Long, even strokes beat frantic scrubbing.
     const legs = Math.max(1, s.rubReversals)
     const perLeg = s.rubDistance / legs
     return Math.max(0, Math.min(1, perLeg / 90))
   }
-  const hint = frame.hint
+  const hint = ref.hint
   if (!hint) return 0.8
   const drift = Math.abs(perpendicularTravel(s, hint))
   const span = Math.hypot(hint.to[0] - hint.from[0], hint.to[1] - hint.from[1]) || 1
@@ -140,6 +145,7 @@ export default function FoldCanvas({
   const orbitingRef = useRef(false)
   const committedRef = useRef(false)
   const dprRef = useRef(1)
+  const stepRefRef = useRef<StepRef>({ hint: null, axisLen: 200 })
 
   stepRef.current = stepIndex
   completeRef.current = complete
@@ -182,15 +188,6 @@ export default function FoldCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipe, material])
 
-  useEffect(() => {
-    const engine = engineRef.current
-    if (!engine) return
-    engine.seekStep(stepIndex)
-    engine.setProgress(0)
-    progressRef.current = 0
-    committedRef.current = false
-    settleRef.current = null
-  }, [stepIndex])
 
   /* ── sizing: canvas is backed at device pixel ratio so paper stays crisp ─ */
   const resize = useCallback(() => {
@@ -208,6 +205,9 @@ export default function FoldCanvas({
     canvas.style.width = `${w}px`
     canvas.style.height = `${h}px`
     engine.fit(w, h)
+    // fit() frames conservatively so a fold in flight never clips; the sheet at
+    // rest only fills ~56% of that. Push in so the paper is the subject.
+    engine.setCamera({ zoom: 1.12 })
   }, [])
 
   useEffect(() => {
@@ -222,6 +222,19 @@ export default function FoldCanvas({
       window.removeEventListener('orientationchange', resize)
     }
   }, [resize])
+
+  useEffect(() => {
+    const engine = engineRef.current
+    if (!engine) return
+    engine.seekStep(stepIndex)
+    engine.setProgress(0)
+    progressRef.current = 0
+    committedRef.current = false
+    settleRef.current = null
+    // The model's centroid travels as it folds; re-frame so the paper stays
+    // the subject instead of drifting into a corner.
+    resize()
+  }, [stepIndex, resize])
 
   /* ── committing a step ────────────────────────────────────────────────── */
   const commit = useCallback(
@@ -273,6 +286,14 @@ export default function FoldCanvas({
         void audio.unlock()
         orbitingRef.current = false
         settleRef.current = null
+        // Freeze the anchors now, before the paper starts moving under them.
+        const f = frameRef.current
+        stepRefRef.current = {
+          hint: f?.hint ? { from: [...f.hint.from] as Vec2, to: [...f.hint.to] as Vec2 } : null,
+          axisLen: f?.axis
+            ? Math.hypot(f.axis.to[0] - f.axis.from[0], f.axis.to[1] - f.axis.from[1])
+            : 200,
+        }
       },
       onClassify: (kind: GestureKind) => {
         const s = recRef.current?.state()
@@ -310,7 +331,7 @@ export default function FoldCanvas({
         const cur = recipe.steps[stepRef.current]
         if (!cur || completeRef.current || committedRef.current) return
 
-        const t = progressFor(cur, s, frame)
+        const t = progressFor(cur, s, stepRefRef.current)
         progressRef.current = t
         engine.setProgress(t)
         onProgress?.(t)
@@ -319,7 +340,7 @@ export default function FoldCanvas({
         // Self-throttles to one pulse per 45ms; safe to call every move.
         haptics.tick(Math.min(1, s.velocity))
 
-        if (t >= 0.999) commit(accuracyFor(cur, s, frame))
+        if (t >= 0.999) commit(accuracyFor(cur, s, stepRefRef.current))
       },
       onTap: () => {
         const cur = recipe.steps[stepRef.current]
@@ -344,7 +365,7 @@ export default function FoldCanvas({
         if (t >= COMMIT_THRESHOLD) {
           // Carry it the rest of the way rather than snapping.
           settleRef.current = { from: t, to: 1, t0: performance.now() }
-          pendingQuality.current = accuracyFor(cur, s, frame)
+          pendingQuality.current = accuracyFor(cur, s, stepRefRef.current)
         } else if (t > 0.02) {
           settleRef.current = { from: t, to: 0, t0: performance.now() }
           audio.play('sheet.settle', { volume: 0.5 })
@@ -407,6 +428,9 @@ export default function FoldCanvas({
 
       const frame = engine.render()
       frameRef.current = frame
+      if (import.meta.env.DEV) {
+        ;(window as unknown as { __ppFrame?: RenderFrame }).__ppFrame = frame
+      }
       paint(ctx, frame, dprRef.current, guidesRef.current && !completeRef.current)
     }
 
@@ -445,6 +469,49 @@ export default function FoldCanvas({
    reconciliation through React would not hold 60fps on a mid-tier phone.
    ══════════════════════════════════════════════════════════════════════════ */
 
+
+/* ── paper grain ───────────────────────────────────────────────────────────
+   One 128px noise tile, built once and reused as a canvas pattern. The old
+   code instantiated a separate SVG turbulence filter per creature, which is a
+   compositing disaster on mobile; this costs one texture upload, total.
+   ────────────────────────────────────────────────────────────────────────── */
+let grainPattern: CanvasPattern | null = null
+let grainKey = ''
+
+function paperGrain(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+  const key = 'g128'
+  if (grainPattern && grainKey === key) return grainPattern
+  const size = 128
+  const tile = document.createElement('canvas')
+  tile.width = size
+  tile.height = size
+  const tctx = tile.getContext('2d')
+  if (!tctx) return null
+  const img = tctx.createImageData(size, size)
+  const d = img.data
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4
+      // Fine speckle plus a long horizontal fibre streak — that pairing is what
+      // reads as handmade paper rather than TV static.
+      const speck = Math.random()
+      const fibre = Math.sin(y * 0.7 + Math.sin(x * 0.06) * 3) * 0.5 + 0.5
+      const v = 168 + speck * 52 + fibre * 26
+      d[i] = d[i + 1] = d[i + 2] = v
+      d[i + 3] = 30
+    }
+  }
+  tctx.putImageData(img, 0, 0)
+  grainPattern = ctx.createPattern(tile, 'repeat')
+  grainKey = key
+  return grainPattern
+}
+
+/** Facets of an in-flight bend fan, which must not be outlined individually. */
+function isBendStrip(id: string): boolean {
+  return id.includes(':s')
+}
+
 function tracePoly(ctx: CanvasRenderingContext2D, pts: Vec2[]) {
   if (pts.length < 3) return
   ctx.beginPath()
@@ -475,6 +542,7 @@ function paint(
   }
 
   /* facets, already depth-sorted by the engine */
+  const grain = paperGrain(ctx)
   const facets = frame.facets
   for (let i = 0; i < facets.length; i++) {
     const f = facets[i]
@@ -483,26 +551,42 @@ function paint(
     ctx.fillStyle = f.fill
     ctx.fill()
 
+    // Fibre. Multiply keeps it a texture on the dye rather than a grey veil.
+    if (grain) {
+      ctx.save()
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.globalAlpha = 0.5
+      ctx.fillStyle = grain
+      ctx.fill()
+      ctx.restore()
+    }
+
     // Specular sheen: paper catches light at grazing angles.
     if (f.sheen > 0.01) {
       ctx.save()
-      ctx.globalAlpha = f.sheen * 0.5
-      ctx.globalCompositeOperation = 'lighter'
+      ctx.globalAlpha = Math.min(0.3, f.sheen * 0.34)
+      ctx.globalCompositeOperation = 'screen'
       ctx.fillStyle = '#fff6e4'
       ctx.fill()
       ctx.restore()
     }
 
-    // Occlusion at the fold seam reads as the crease having depth.
+    // Occlusion at the fold seam reads as the crease having depth. Multiply, so
+    // it deepens the dye instead of laying grey over it — source-over at this
+    // strength turned red paper into slate.
     if (f.occlusion > 0.01) {
       ctx.save()
-      ctx.globalAlpha = f.occlusion * 0.45
-      ctx.fillStyle = '#3a2c1e'
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.globalAlpha = Math.min(0.34, f.occlusion * 0.34)
+      ctx.fillStyle = '#8a6a4a'
       ctx.fill()
       ctx.restore()
     }
 
-    if (f.stroke) {
+    // A bending flap is emitted as a fan of strips (ids end ':s<n>'). Stroking
+    // each one turns a smooth bow into corrugated iron — the per-strip shading
+    // already reads as curvature, so only real paper edges get an edge.
+    if (f.stroke && !isBendStrip(f.id)) {
       ctx.strokeStyle = f.stroke
       ctx.lineWidth = f.strokeWidth
       ctx.lineJoin = 'round'
