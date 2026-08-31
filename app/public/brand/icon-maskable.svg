@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Paper Planet">
+  <title>Paper Planet</title>
+  <!-- Maskable: art confined to the inner 80% safe zone, paper fills the bleed. -->
+  <rect width="512" height="512" fill="#F7EDE0"/>
+  <g transform="translate(256 256) scale(0.72) translate(-256 -256)">
+    <defs>
+      <linearGradient id="mdisc" x1="0" y1="0" x2="0.4" y2="1">
+        <stop offset="0" stop-color="#FDF8F0"/>
+        <stop offset="1" stop-color="#EFE1CE"/>
+      </linearGradient>
+      <clipPath id="mClip"><circle cx="256" cy="256" r="232"/></clipPath>
+    </defs>
+    <circle cx="256" cy="256" r="232" fill="url(#mdisc)"/>
+    <g clip-path="url(#mClip)">
+      <line x1="-40" y1="330" x2="552" y2="130" stroke="#C9B393" stroke-opacity="0.55" stroke-width="3"/>
+    </g>
+    <!--
+      The crane. Cut-paper silhouette: solid facets, one shadow facet per plane,
+      no outlines. Drawn back-to-front, lit from the upper left.
+    -->
+    <g>
+      <path d="M250 256 L96 170 L192 288 Z" fill="#B8402C"/>
+      <path d="M224 312 L118 390 L246 348 Z" fill="#C24732"/>
+      <path d="M250 256 L224 312 L200 282 Z" fill="#C24732"/>
+      <path d="M250 256 L332 288 L302 352 L224 312 Z" fill="#E4664F"/>
+      <path d="M250 256 L428 176 L332 288 Z" fill="#F0836A"/>
+      <path d="M246 258 L274 250 L222 126 L200 134 Z" fill="#E4664F"/>
+      <path d="M222 126 L200 134 L214 92 Z" fill="#F0836A"/>
+      <path d="M214 92 L200 134 L152 108 Z" fill="#C9962E"/>
+    </g>
+  </g>
+</svg>
