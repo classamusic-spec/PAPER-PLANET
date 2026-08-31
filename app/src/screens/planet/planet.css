@@ -1,0 +1,276 @@
+/* PAPER PLANET — the world. Cut paper in depth bands, on a lit ground. */
+
+.pp-planet {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--paper-2);
+}
+
+.pp-planet__world {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  /* Biome palette lands here as custom properties. */
+  --sky: var(--paper-1);
+  --ground: var(--matcha-soft);
+  --far: var(--matcha);
+  --accent: var(--kincha);
+}
+.pp-planet__world:active { cursor: grabbing; }
+
+.pp-planet__sky {
+  position: absolute;
+  inset: 0;
+  background:
+    /* a low sun, and a couple of paper clouds */
+    radial-gradient(circle 74px at 79% 15%, color-mix(in srgb, var(--accent) 42%, transparent) 0 40%, transparent 62%),
+    radial-gradient(ellipse 30% 4% at 24% 24%, rgba(255, 255, 255, 0.5) 0 58%, transparent 72%),
+    radial-gradient(ellipse 20% 3% at 64% 33%, rgba(255, 255, 255, 0.38) 0 58%, transparent 72%),
+    linear-gradient(180deg, var(--sky) 0%, color-mix(in srgb, var(--sky) 62%, var(--paper-0)) 62%, var(--paper-0) 100%);
+}
+.pp-planet.is-night .pp-planet__sky {
+  background:
+    radial-gradient(circle 46px at 77% 14%, color-mix(in srgb, var(--gold-hi) 62%, transparent) 0 46%, transparent 66%),
+    radial-gradient(circle 2px at 18% 12%, var(--gold-hi) 0 60%, transparent 62%),
+    radial-gradient(circle 2px at 42% 20%, var(--gold-hi) 0 60%, transparent 62%),
+    radial-gradient(circle 1.5px at 60% 9%, var(--gold-hi) 0 60%, transparent 62%),
+    radial-gradient(circle 2px at 88% 28%, var(--gold-hi) 0 60%, transparent 62%),
+    linear-gradient(180deg, var(--paper-4) 0%, var(--paper-3) 66%, var(--paper-2) 100%);
+}
+
+/* ── parallax bands ─────────────────────────────────────────────────────── */
+.pp-planet__band {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+  transition: transform 120ms linear;
+  pointer-events: none;
+}
+.pp-planet__band--far { filter: saturate(0.7); opacity: 0.7; }
+.pp-planet__band--mid { opacity: 0.9; }
+
+.pp-planet__prop {
+  position: absolute;
+  overflow: visible;
+  display: block;
+}
+.pp-planet__prop polygon { stroke: none; }
+.pp-planet__prop .t-far { fill: var(--far); }
+.pp-planet__prop .t-mid { fill: color-mix(in srgb, var(--far) 62%, var(--ground)); }
+.pp-planet__prop .t-near { fill: var(--ground); }
+.pp-planet__prop .t-deep { fill: color-mix(in srgb, var(--far) 70%, var(--ink)); }
+.pp-planet__prop .t-pale { fill: color-mix(in srgb, var(--ground) 55%, var(--paper-0)); }
+.pp-planet__prop .t-accent { fill: var(--accent); }
+.pp-planet__prop .t-ink { fill: var(--ink); }
+.pp-planet__prop .is-soft { opacity: 0.55; }
+
+/* ── ground and water ───────────────────────────────────────────────────── */
+.pp-planet__ground {
+  position: absolute;
+  left: -6%;
+  right: -6%;
+  bottom: -14%;
+  height: 66%;
+  background: var(--ground);
+  border-radius: 46% 54% 0 0 / 22% 20% 0 0;
+  box-shadow: 0 -3px 0 color-mix(in srgb, var(--ground) 74%, var(--paper-0));
+}
+.pp-planet__world::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s var(--ease-paper);
+  background: linear-gradient(180deg, rgba(20, 12, 40, 0.34), rgba(14, 8, 30, 0.52));
+  mix-blend-mode: multiply;
+  z-index: 5;
+}
+.pp-planet.is-night .pp-planet__world::after { opacity: 1; }
+
+.pp-planet__water {
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: 30%;
+  height: 9%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ai-soft) 72%, var(--ground));
+  box-shadow: inset 0 3px 0 color-mix(in srgb, var(--ai-soft) 40%, var(--paper-0));
+}
+
+/* ── the Kami ───────────────────────────────────────────────────────────── */
+.pp-planet__kami {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  will-change: transform;
+  transition: transform 120ms linear;
+}
+
+.pp-planet__k {
+  position: absolute;
+  transform: translate(-50%, -50%) rotate(var(--lean, 0deg));
+  aspect-ratio: 1;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  animation: pp-kami-breathe 4.2s var(--ease-paper) infinite;
+  animation-delay: calc(var(--phase, 0s) * -1);
+  filter: drop-shadow(0 6px 6px rgba(62, 44, 30, 0.16));
+}
+.pp-planet__k:active { transform: translate(-50%, -50%) rotate(var(--lean, 0deg)) scale(0.94); }
+.pp-planet__k.is-happy { animation: pp-kami-happy 0.9s var(--ease-alive); }
+.pp-planet.is-night .pp-planet__k { filter: drop-shadow(0 6px 8px rgba(10, 6, 22, 0.45)); }
+
+@keyframes pp-kami-breathe {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.018; }
+}
+@keyframes pp-kami-happy {
+  0% { scale: 1; }
+  30% { scale: 1.16; rotate: -5deg; }
+  60% { scale: 0.97; rotate: 4deg; }
+  100% { scale: 1; rotate: 0deg; }
+}
+
+/* ── empty state ────────────────────────────────────────────────────────── */
+.pp-planet__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  text-align: center;
+  color: var(--ink-faint);
+  padding: var(--s-6);
+}
+.pp-planet__empty p {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* ── chrome ─────────────────────────────────────────────────────────────── */
+.pp-planet__hud {
+  position: absolute;
+  top: calc(var(--safe-t) + var(--s-3));
+  left: calc(var(--safe-l) + var(--s-4));
+  right: calc(var(--safe-r) + var(--s-4));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  z-index: var(--z-hud);
+}
+.pp-planet__purse { display: flex; gap: var(--s-2); }
+
+.pp-planet__lantern {
+  position: absolute;
+  top: calc(var(--safe-t) + var(--s-3) + var(--touch-min) + var(--s-3));
+  left: calc(var(--safe-l) + var(--s-4));
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--touch-min);
+  padding: var(--s-2) var(--s-4);
+  background: var(--kincha-soft);
+  color: var(--kincha-deep);
+  border: none;
+  border-radius: var(--r-pill);
+  box-shadow: var(--sh-2);
+  cursor: pointer;
+  z-index: var(--z-hud);
+  transform: rotate(-1.2deg);
+  font-family: var(--font-text);
+  text-align: left;
+}
+.pp-planet__lantern span { display: grid; font-size: var(--fs-label); }
+.pp-planet__lantern strong {
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.pp-planet__biomes {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-b) + 104px);
+  display: flex;
+  gap: var(--s-2);
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0 var(--s-4);
+  z-index: var(--z-hud);
+}
+.pp-planet__biome {
+  min-height: 34px;
+  padding: var(--s-1) var(--s-3);
+  border: none;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--paper-0) 78%, transparent);
+  color: var(--ink-soft);
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: var(--sh-1);
+}
+.pp-planet__biome.is-here { background: var(--ink); color: var(--paper-0); }
+
+.pp-planet__dock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 var(--s-3) calc(var(--safe-b) + var(--s-3));
+  z-index: var(--z-hud);
+}
+.pp-planet__dockpaper { max-width: 560px; margin: 0 auto; }
+.pp-planet__dockrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+}
+.pp-planet__dockbtn {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: var(--s-1) var(--s-2);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.pp-planet__dockbtn:hover { color: var(--ink); }
+
+@media (min-width: 768px) {
+  .pp-planet__biomes { bottom: calc(var(--safe-b) + 118px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-planet__k { animation: none; }
+  .pp-planet__band, .pp-planet__kami { transition: none; }
+}
