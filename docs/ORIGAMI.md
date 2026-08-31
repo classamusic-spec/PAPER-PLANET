@@ -193,16 +193,38 @@ we already have.
 
 ## 5. Build order
 
-1. **Landmarks** (§4.1) — everything else leans on it, and it upgrades our
-   quality score from a proxy to the real measure.
-2. **Traditional models** (§1) — add ~12 real public-domain models beside the
-   fantasy Kami. Crane and waterbomb first; we already fold both.
-3. **Notation layer** (§4.2) — the transferable skill.
-4. **Pre-crease + collapse** (§4.3) — the best-feeling move we are missing.
-5. **Fold Along + printable** (§4.4) — where it stops being a game and becomes
-   teaching.
-6. **CP view + FOLD export** (§4.5) — depth, and credibility with real folders.
-7. **Skill tree** (§4.6) — restructures progression once the rest exists.
+Status as of the teaching pass. The order below is the original plan; the
+marks are what actually shipped.
+
+| | | |
+|---|---|---|
+| 1 | **Landmarks** (§4.1) | ✅ **Built.** `content/landmarks.ts` derives the reference from geometry rather than asking 34 recipes to restate it. 166 of the 255 paper-moving steps carry one, in four relations (`meet`, `onto-line`, `across`, `line`). The quality score is no longer a proxy: `landmarkAccuracy` measures how far the hand carried the landmark and how straight, grading a short fold and a sideways one differently. |
+| 2 | **Traditional models** (§1) | ⬜ Not started. The roster is still fantasy Kami on classical bases — which is legally safe and pedagogically sound, but ~12 named public-domain models beside them would make the promise explicit. |
+| 3 | **Notation layer** (§4.2) | 🟡 **Partly built.** The real Yoshizawa–Randlett symbols are drawn — dashed valley, dash-dot mountain, split valley head, hollow mountain head, double-headed unfold, turn-over loop, circled rotation, open circles for a press — but only inside Fold Along. A notation *quiz*, so the reading is practised rather than merely seen, is in progress. |
+| 4 | **Pre-crease + collapse** (§4.3) | ⬜ Not started. Still the best-feeling move we do not have. |
+| 5 | **Fold Along + printable** (§4.4) | ✅ **Built.** One step to a page, tap-advanced, in notation rather than the game view, plus a printable page carrying every plate and the crease pattern. The diagrams are not drawn: the engine is pointed straight down and its polygons are the plate, so a diagram cannot drift from the fold it describes. |
+| 6 | **CP view + FOLD export** (§4.5) | 🟡 **Half built.** `buildCreasePattern()` produces the crease pattern and it prints. FOLD export — the bridge to Origami Simulator — is not written. |
+| 7 | **Skill tree** (§4.6) | 🟡 **Started from the other end.** The Practice Sheet is the drill half: five scored folds a day, drawn from across the roster, date-seeded. What is missing is the gating — progression still counts folds rather than techniques demonstrated. |
+
+### What the build taught us that the plan did not anticipate
+
+- **A diagram and a game view disagree about the camera.** Every step carries a
+  staged pose for the Studio, and letting one reach a diagram turns the square
+  sheet into a trapezoid. Diagrams need pitch 0 and their own framing.
+- **A crease is not always a line on screen.** Its two authored endpoints can be
+  folded onto each other (the fold-in-half mountain does it), and shaping
+  creases are authored as long lines whose named ends fall outside the sheet.
+  The fold line has to be *walked* across the paper and clipped to what is
+  visible, keeping the longest stretch that neither jumps nor bends.
+- **A flat view stops informing before it stops working.** A model folded in
+  half is a line from above. Books turn the page's viewpoint there; the trigger
+  is solidity, not size, and across the corpus readable shapes and edge-on ones
+  do not overlap.
+- **65% is the honest ceiling for landmarks.** The steps without one are the
+  free-form shaping folds — ears, flippers, pleats — and they have no landmark
+  in real origami either. Inventing references for them would teach a lie.
+
+---
 
 Keep the Kami. The fantasy creatures are the reason someone opens the app; the
 real origami is the reason they keep it. A player who folds a Kami has, without
