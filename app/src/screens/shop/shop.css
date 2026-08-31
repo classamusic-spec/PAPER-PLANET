@@ -1,0 +1,228 @@
+/* PAPER PLANET — the shop. A stationer's case: goods laid out, nothing shouted. */
+
+.pp-shop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-1);
+  padding: var(--safe-t) var(--safe-r) 0 var(--safe-l);
+  overflow: hidden;
+}
+
+.pp-shop__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4) var(--s-2);
+  flex: 0 0 auto;
+}
+.pp-shop__head h1 {
+  flex: 1 1 auto;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-title);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0;
+}
+.pp-shop__purse { display: flex; gap: var(--s-2); flex: 0 0 auto; }
+
+.pp-shop__tabs { padding: 0 var(--s-4) var(--s-2); flex: 0 0 auto; overflow-x: auto; scrollbar-width: none; }
+.pp-shop__tabs::-webkit-scrollbar { display: none; }
+
+.pp-shop__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-2) var(--s-4) calc(var(--s-10) + var(--safe-b));
+}
+
+.pp-shop__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-4); }
+@media (min-width: 900px) {
+  .pp-shop__list { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+}
+
+.pp-shop__card { padding: var(--s-5); }
+.pp-shop__card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3); }
+.pp-shop__card-head h2 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-title);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 2px 0;
+}
+.pp-shop__kind {
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--kincha-deep);
+  margin: 0;
+}
+.pp-shop__kind[data-accent='matcha'] { color: var(--matcha-deep); }
+.pp-shop__kind[data-accent='ai'] { color: var(--ai-deep); }
+.pp-shop__kind[data-accent='murasaki'] { color: var(--murasaki-deep); }
+.pp-shop__tagline {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: 0;
+  text-wrap: pretty;
+}
+.pp-shop__price {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-title);
+  color: var(--ink);
+  margin: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.pp-shop__swatches { display: flex; gap: var(--s-2); margin: var(--s-4) 0 0; flex-wrap: wrap; }
+
+.pp-shop__benefits {
+  list-style: none;
+  margin: var(--s-4) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+}
+.pp-shop__benefits li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-snug);
+  color: var(--ink-soft);
+}
+.pp-shop__benefits li svg { flex: 0 0 auto; margin-top: 3px; color: var(--matcha-deep); }
+
+.pp-shop__act { margin-top: var(--s-5); display: flex; justify-content: flex-end; }
+
+.pp-shop__foot {
+  margin-top: var(--s-8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  text-align: center;
+}
+.pp-shop__promise {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  line-height: var(--lh-body);
+  color: var(--ink-faint);
+  max-width: 38ch;
+  margin: 0;
+  text-wrap: pretty;
+}
+
+/* ── shop closed ────────────────────────────────────────────────────────── */
+.pp-shop--closed { padding: calc(var(--safe-t) + var(--s-3)) var(--s-4) var(--s-4); }
+.pp-shop__closed {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-4);
+  text-align: center;
+  color: var(--ink-faint);
+}
+.pp-shop__closed h1 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-display-m);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0;
+}
+.pp-shop__closed p {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  max-width: 34ch;
+  margin: 0;
+}
+
+/* ── the fold journal ───────────────────────────────────────────────────── */
+.pp-journal__head { padding: var(--s-5); }
+.pp-journal__head h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-title);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0 0 var(--s-1);
+}
+.pp-journal__head p {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-4);
+}
+
+.pp-journal__claim { display: flex; justify-content: center; margin: var(--s-4) 0; }
+
+.pp-journal__track {
+  list-style: none;
+  margin: var(--s-4) 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.pp-journal__legend,
+.pp-journal__tier {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr 1fr;
+  gap: var(--s-2);
+  align-items: center;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-faint);
+}
+.pp-journal__legend {
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+}
+.pp-journal__tier.is-reached { background: var(--paper-2); color: var(--ink-soft); }
+.pp-journal__tier.is-taken { color: var(--ink-faint); }
+.pp-journal__n {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.pp-journal__tier.is-reached .pp-journal__n { color: var(--matcha-deep); }
+.pp-journal__prem.is-locked { opacity: 0.55; }
+
+.pp-journal__upsell { margin-top: var(--s-6); }
+.pp-journal__upsell-body { padding: var(--s-5); display: grid; gap: var(--s-2); justify-items: start; }
+.pp-journal__upsell-body h3 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--fs-title);
+  color: var(--ink);
+  margin: 0;
+}
+.pp-journal__upsell-body p {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  color: var(--ink-soft);
+  margin: 0;
+}
+.pp-journal__upsell-note { font-size: var(--fs-label) !important; color: var(--ink-faint) !important; }

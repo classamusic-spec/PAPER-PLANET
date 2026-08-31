@@ -1,0 +1,130 @@
+/* PAPER PLANET — settings as a stack of paper forms on a desk. */
+
+.pp-set {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-2);
+  padding: var(--safe-t) var(--safe-r) 0 var(--safe-l);
+  overflow: hidden;
+}
+
+.pp-set__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4) var(--s-2);
+  flex: 0 0 auto;
+}
+.pp-set__head h1 {
+  flex: 1 1 auto;
+  text-align: center;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-display-m);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0;
+}
+.pp-set__spacer { width: var(--touch-min); flex: 0 0 auto; }
+
+.pp-set__scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-2) var(--s-4) calc(var(--s-10) + var(--safe-b));
+  display: grid;
+  gap: var(--s-5);
+  align-content: start;
+}
+@media (min-width: 900px) {
+  .pp-set__scroll {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 1000px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .pp-set__atelier, .pp-set__about { grid-column: 1 / -1; }
+}
+
+/* ── a sheet ────────────────────────────────────────────────────────────── */
+.pp-set__sheet { padding: var(--s-5); }
+.pp-set__sheet h2 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 800;
+  font-size: var(--fs-title);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink);
+  margin: 0;
+}
+
+/* ── a row ──────────────────────────────────────────────────────────────── */
+.pp-set__field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--ink-hair);
+}
+.pp-set__field:first-of-type { border-top: none; }
+.pp-set__field[data-stacked='true'] { flex-direction: column; align-items: stretch; gap: var(--s-2); }
+.pp-set__fieldtext { flex: 1 1 auto; min-width: 0; }
+.pp-set__fieldlabel {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--fs-body-l);
+  color: var(--ink);
+}
+.pp-set__fieldhint {
+  display: block;
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin-top: 2px;
+  text-wrap: pretty;
+}
+.pp-set__fieldctl { flex: 0 0 auto; display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.pp-set__field[data-stacked='true'] .pp-set__fieldctl { width: 100%; }
+
+.pp-set__file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.pp-set__confirm { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+
+/* ── one honest line about the Atelier ──────────────────────────────────── */
+.pp-set__atelier {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  text-align: center;
+  margin: 0;
+  text-wrap: pretty;
+}
+.pp-set__atelier button {
+  font: inherit;
+  font-weight: 800;
+  color: var(--kincha-deep);
+  background: none;
+  border: none;
+  padding: var(--s-1) var(--s-2);
+  min-height: var(--touch-min);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pp-set__about {
+  text-align: center;
+  color: var(--ink-faint);
+  font-family: var(--font-text);
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  margin-top: var(--s-6);
+}
+.pp-set__about p { margin: 2px 0; }

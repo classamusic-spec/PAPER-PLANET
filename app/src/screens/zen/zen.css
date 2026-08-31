@@ -1,0 +1,109 @@
+/* PAPER PLANET — Zen. The paper, and as little else as possible. */
+
+.pp-zen {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+  padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
+}
+
+.pp-zen__ground {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(
+    ellipse 86% 66% at 50% 48%,
+    var(--paper-0) 0%,
+    var(--paper-1) 50%,
+    var(--paper-2) 82%,
+    var(--paper-3) 100%
+  );
+}
+.pp-zen > *:not(.pp-zen__ground) { position: relative; z-index: 1; }
+
+/* Chrome fades away while you fold and returns on touch. */
+.pp-zen__chrome {
+  transition: opacity var(--t-slow) var(--ease-paper);
+}
+.pp-zen.is-quiet .pp-zen__chrome { opacity: 0.16; }
+.pp-zen.is-quiet .pp-zen__say { opacity: 0.55; }
+
+.pp-zen__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4) 0;
+}
+.pp-zen__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--fs-body-l);
+  letter-spacing: var(--tracking-display);
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.pp-zen__arena { display: grid; place-items: center; min-height: 0; }
+.pp-zen .pp-fold-canvas { width: min(94vw, 64vh); }
+@media (min-width: 768px) { .pp-zen .pp-fold-canvas { width: min(62vw, 72vh); } }
+
+.pp-zen__foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-6) var(--s-6);
+}
+
+/* The breathing guide: 4s in, 4s out. Fold along with it, or don't. */
+.pp-zen__breath {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+}
+.pp-zen__breath > span {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-pill);
+  border: 2px solid var(--ink-hair);
+  animation: pp-breathe 8s ease-in-out infinite;
+}
+@keyframes pp-breathe {
+  0%, 100% { transform: scale(0.62); opacity: 0.45; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+.pp-zen__say {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-body-l);
+  color: var(--ink-soft);
+  text-align: center;
+  margin: 0;
+  max-width: 34ch;
+  text-wrap: balance;
+  transition: opacity var(--t-slow) var(--ease-paper);
+}
+
+.pp-zen__beds { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.pp-zen__pick { margin-top: var(--s-5); }
+.pp-zen__pick-label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-family: var(--font-text);
+  font-weight: 800;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 var(--s-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-zen__breath > span { animation: none; transform: scale(0.85); opacity: 0.7; }
+}
