@@ -50,6 +50,8 @@ export function ShareSheet({ open, onClose, subject, now: openedAt }: ShareSheet
 
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [frameRef, frame] = useElementSize<HTMLDivElement>(open)
+  const [said, setSaid] = useState<{ title: string; note?: string } | null>(null)
+  const sayTimer = useRef<number | null>(null)
 
   /* One date for the life of the sheet, so it cannot change under a preview. */
   const [mountedAt] = useState(() => Date.now())
@@ -128,26 +130,52 @@ export function ShareSheet({ open, onClose, subject, now: openedAt }: ShareSheet
 
   const filename = data ? cardFilename(data.fileStem, shape) : 'paper-planet.png'
 
+  /**
+   * Say something warm, wherever there is somewhere to say it. `ToastApi.show`
+   * returns an empty id when no provider is mounted above us — the sheet then
+   * keeps the line itself rather than swallowing it, because a player who
+   * pressed Save is owed an answer either way.
+   */
+  const say = useCallback(
+    (note: { title: string; note?: string; icon?: 'check' | 'leaf'; accent?: 'matcha' }) => {
+      const id = toast.show({
+        title: note.title,
+        note: note.note,
+        icon: note.icon,
+        accent: note.accent,
+        cue: note.icon === 'leaf' ? 'ui.close' : undefined,
+      })
+      if (id) return
+      if (sayTimer.current !== null) window.clearTimeout(sayTimer.current)
+      setSaid({ title: note.title, note: note.note })
+      sayTimer.current = window.setTimeout(() => setSaid(null), 5200)
+    },
+    [toast],
+  )
+
+  useEffect(() => () => {
+    if (sayTimer.current !== null) window.clearTimeout(sayTimer.current)
+  }, [])
+
   const fallbackSave = useCallback(
     (blob: Blob, note?: string) => {
       const result = saveBlob(blob, filename)
       if (result === 'saved') {
-        toast.show({ title: 'Saved to your pictures.', note, icon: 'check', accent: 'matcha' })
+        say({ title: 'Saved to your pictures.', note, icon: 'check', accent: 'matcha' })
       } else {
-        toast.show({
+        say({
           title: 'That one stayed on the desk.',
           note: 'Try again in a moment — nothing was lost.',
           icon: 'leaf',
-          cue: 'ui.close',
         })
       }
     },
-    [filename, toast],
+    [filename, say],
   )
 
   const onShare = useCallback(async () => {
     const blob = await takeBlob()
-    if (!blob) return fallbackNothing(toast)
+    if (!blob) return nothingSet(say)
     const text = data?.alt ?? 'Folded in Paper Planet.'
     const result = await shareBlob(blob, filename, text)
     if (result === 'shared') {
@@ -156,13 +184,13 @@ export function ShareSheet({ open, onClose, subject, now: openedAt }: ShareSheet
     }
     if (result === 'cancelled') return
     fallbackSave(blob, result === 'unsupported' ? 'Sharing is not offered by this browser.' : undefined)
-  }, [takeBlob, data, filename, fallbackSave, toast])
+  }, [takeBlob, data, filename, fallbackSave, say])
 
   const onSave = useCallback(async () => {
     const blob = await takeBlob()
-    if (!blob) return fallbackNothing(toast)
+    if (!blob) return nothingSet(say)
     fallbackSave(blob)
-  }, [takeBlob, fallbackSave, toast])
+  }, [takeBlob, fallbackSave, say])
 
   const onCopy = useCallback(async () => {
     /* built around the promise, not an awaited blob: Safari drops the gesture */
@@ -173,13 +201,13 @@ export function ShareSheet({ open, onClose, subject, now: openedAt }: ShareSheet
     const result = await copyBlob(pending)
     if (result === 'copied') {
       audio.play('ui.confirm')
-      toast.show({ title: 'Copied.', note: 'Paste it wherever you like.', icon: 'check', accent: 'matcha' })
+      say({ title: 'Copied.', note: 'Paste it wherever you like.', icon: 'check', accent: 'matcha' })
       return
     }
     const blob = await pending.catch(() => null)
-    if (!blob) return fallbackNothing(toast)
+    if (!blob) return nothingSet(say)
     fallbackSave(blob, 'Copying is not offered here, so it is saved instead.')
-  }, [takeBlob, fallbackSave, toast])
+  }, [takeBlob, fallbackSave, say])
 
   /* ── chrome ────────────────────────────────────────────────────────────── */
 
@@ -196,6 +224,14 @@ export function ShareSheet({ open, onClose, subject, now: openedAt }: ShareSheet
       className="pps-sheet"
       footer={
         <div className="pps-actions">
+          <p className="pps-said" role="status" aria-live="polite">
+            {said ? (
+              <>
+                <span>{said.title}</span>
+                {said.note ? <span className="pps-said__note"> {said.note}</span> : null}
+              </>
+            ) : null}
+          </p>
           {caps.share && (
             <Button variant="beni" size="lg" icon="share" block onClick={() => void onShare()} cue="ui.confirm">
               Share
@@ -260,12 +296,11 @@ export function ShareSheet({ open, onClose, subject, now: openedAt }: ShareSheet
 }
 
 /** The card could not be composed at all. Say so gently and stop. */
-function fallbackNothing(toast: ReturnType<typeof useToast>): void {
-  toast.show({
+function nothingSet(say: (note: { title: string; note?: string; icon?: 'check' | 'leaf' }) => void): void {
+  say({
     title: 'The card did not set.',
     note: 'Close this and open it again — it usually takes the second time.',
     icon: 'leaf',
-    cue: 'ui.close',
   })
 }
 

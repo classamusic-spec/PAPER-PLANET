@@ -91,3 +91,16 @@
   align-items: center;
   gap: var(--s-1);
 }
+
+/* ── what happened, when there is no toast desk to drop a slip onto ──────── */
+
+.pps-said {
+  margin: 0;
+  min-height: 1.2em;
+  text-align: center;
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+}
+.pps-said:empty { display: none; }
+.pps-said__note { color: var(--ink-faint); }

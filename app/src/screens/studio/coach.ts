@@ -210,8 +210,8 @@ export interface CoachApi {
  */
 interface OpenLesson {
   topic: CoachTopic
-  /** Which visit to a step this belongs to. A lesson never outlives its visit. */
-  visit: number
+  /** The step this lesson was opened for. It never outlives that step. */
+  step: number
 }
 
 export function useFoldCoach(input: CoachInput): CoachApi {
@@ -219,28 +219,32 @@ export function useFoldCoach(input: CoachInput): CoachApi {
 
   const [open, setOpen] = useState<OpenLesson | null>(null)
 
-  /**
-   * A lesson is scoped to one visit to one step, and the visit counter only
-   * ever moves in an effect. That is what closes the teacher when the step
-   * changes — no reset `setState`, and no chance of a stale lesson reappearing
-   * when an Unfold brings the same step index back.
-   */
-  const visit = useRef(0)
+  /* A mirror the policy timer can read without wanting a render per tick, plus
+     when the player last did anything, and which step has had its one offer. */
   const openRef = useRef<OpenLesson | null>(null)
+  /* True while `open` holds something. `touch` runs on every pointer move, so
+     it must not reach for setState sixty times a second. */
+  const shownRef = useRef(false)
   /* Stamped by the step effect below, so render itself stays pure. */
   const activeAt = useRef(0)
   const offeredOn = useRef(-1)
 
-  const topic = open && open.visit === visit.current ? open.topic : null
+  /* A lesson belongs to the step it opened on. Move on and it is simply gone —
+     no reset render, and nothing to leak into the next step. */
+  const topic = open && open.step === stepIndex ? open.topic : null
 
   const close = useCallback(() => {
     activeAt.current = Date.now()
     const was = openRef.current
-    if (!was) return
     openRef.current = null
-    setOpen(null)
+    /* Clearing the *state*, not just the mirror, is what guarantees a lesson
+       cannot come back when an Unfold brings its step index round again. */
+    if (shownRef.current) {
+      shownRef.current = false
+      setOpen(null)
+    }
     /* The orbit has no step to complete, so seeing it *is* learning it. */
-    if (was.topic === 'orbit') onTaught('orbit')
+    if (was?.topic === 'orbit') onTaught('orbit')
   }, [onTaught])
 
   const touch = useCallback(() => {
@@ -248,11 +252,11 @@ export function useFoldCoach(input: CoachInput): CoachApi {
     close()
   }, [close])
 
-  /* A new step — or the same step again, after an Unfold — is a fresh slate. */
+  /* A new step — or the same step again, after an Unfold — is a fresh slate.
+     Refs only: the render above has already stopped showing the old lesson. */
   useEffect(() => {
     const was = openRef.current
     openRef.current = null
-    visit.current += 1
     offeredOn.current = -1
     activeAt.current = Date.now()
     /* Folding on past an open orbit lesson counts as having learned it. */
@@ -274,8 +278,9 @@ export function useFoldCoach(input: CoachInput): CoachApi {
   useEffect(() => {
     if (complete || !gesture) return
     const show = (next: CoachTopic): void => {
-      const entry: OpenLesson = { topic: next, visit: visit.current }
+      const entry: OpenLesson = { topic: next, step: stepIndex }
       openRef.current = entry
+      shownRef.current = true
       setOpen(entry)
     }
     const id = window.setInterval(() => {
@@ -291,10 +296,10 @@ export function useFoldCoach(input: CoachInput): CoachApi {
       }
 
       /* One offer per visit to a step. An offer, not a nag. */
-      if (offeredOn.current === visit.current) return
+      if (offeredOn.current === stepIndex) return
       const firstEver = teachFold && stepIndex <= 1
       if (idleFor < (firstEver ? COACH_TIMING.open : COACH_TIMING.idle)) return
-      offeredOn.current = visit.current
+      offeredOn.current = stepIndex
       show('fold')
     }, COACH_TIMING.pulse)
     return () => window.clearInterval(id)
