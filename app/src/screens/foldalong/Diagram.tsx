@@ -40,9 +40,13 @@ function head(tip: Vec2, from: Vec2, size: number, half: boolean): string {
     : `M ${tip[0]} ${tip[1]} L ${p1[0]} ${p1[1]} L ${p2[0]} ${p2[1]} Z`
 }
 
-function Arrow({ from, to, kind }: { from: Vec2; to: Vec2; kind: ArrowKind }) {
+function Arrow({ from, to, kind, plate }: { from: Vec2; to: Vec2; kind: ArrowKind; plate: number }) {
   const span = Math.hypot(to[0] - from[0], to[1] - from[1])
   const size = Math.max(26, Math.min(64, span * 0.22))
+  /* A rotate mark is an annotation on the page, not a measure of the motion, so
+     it is sized from the plate. Taken from the hint span it came out about
+     fifteen pixels across with the 1 and the 4 sitting on top of each other. */
+  const glyph = plate * 0.055
 
   if (kind === 'hold') {
     /* An open circle: hold here. Two of them, because a press needs two hands. */
@@ -57,16 +61,30 @@ function Arrow({ from, to, kind }: { from: Vec2; to: Vec2; kind: ArrowKind }) {
   if (kind === 'rotate') {
     /* A fraction in a circle: turn the model on the desk. */
     const c = mid(from, to, 0)
-    const r = size * 0.9
+    const r = glyph
     return (
       <g className="pp-dia__arrow">
         <circle cx={c[0]} cy={c[1]} r={r} fill="none" strokeWidth={W.arrow} />
         <path
-          d={`M ${c[0] - r * 0.5} ${c[1] + r * 0.45} L ${c[0] + r * 0.5} ${c[1] - r * 0.45}`}
+          d={`M ${c[0] - r * 0.52} ${c[1] + r * 0.48} L ${c[0] + r * 0.52} ${c[1] - r * 0.48}`}
           strokeWidth={W.arrow}
         />
-        <text x={c[0] - r * 0.34} y={c[1] - r * 0.12} className="pp-dia__frac">1</text>
-        <text x={c[0] + r * 0.06} y={c[1] + r * 0.62} className="pp-dia__frac">4</text>
+        <text
+          x={c[0] - r * 0.4}
+          y={c[1] - r * 0.14}
+          className="pp-dia__frac"
+          style={{ fontSize: r * 0.78 }}
+        >
+          1
+        </text>
+        <text
+          x={c[0] + r * 0.02}
+          y={c[1] + r * 0.74}
+          className="pp-dia__frac"
+          style={{ fontSize: r * 0.78 }}
+        >
+          4
+        </text>
       </g>
     )
   }
@@ -169,7 +187,14 @@ export default function Diagram({ plate, viewBox, front, back, size, label, clas
         </>
       )}
 
-      {plate.arrow && <Arrow from={plate.arrow.from} to={plate.arrow.to} kind={plate.arrow.kind} />}
+      {plate.arrow && (
+        <Arrow
+          from={plate.arrow.from}
+          to={plate.arrow.to}
+          kind={plate.arrow.kind}
+          plate={Number(viewBox.split(' ')[2]) || 1000}
+        />
+      )}
 
       {/* Where to put a finger. */}
       {plate.marks.map((m, i) => (

@@ -128,3 +128,95 @@
   margin-top: var(--s-6);
 }
 .pp-set__about p { margin: 2px 0; }
+
+/* ── the Choice control ─────────────────────────────────────────────────────
+   These four class names shipped in the markup and never got a stylesheet, so
+   every theme, ambience and light selector in Settings was rendering as bare
+   browser buttons — the ugliest thing in the app, and on the one screen a
+   player opens when something is already bothering them.
+
+   Built as paper chips to match the rest of the desk: a selected option is
+   pressed into the page rather than lit up, which is how the Chip and Tab in
+   the kit already read. `role="radiogroup"` means arrow keys move between them
+   and only the selected one is tabbable, so the focus ring has to be visible
+   on the option itself, not on the group. */
+.pp-set__choice {
+  display: flex;
+  gap: var(--s-2);
+  align-items: stretch;
+}
+.pp-set__choice[data-layout='wrap'] {
+  flex-wrap: wrap;
+}
+
+.pp-set__opt {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: var(--touch-min);
+  min-height: var(--touch-min);
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  border-radius: var(--r-2);
+  background: var(--paper-0);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 14%, transparent);
+  color: var(--ink-soft);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: var(--lh-snug);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background var(--t-fast) var(--ease-settle),
+    color var(--t-fast) var(--ease-settle),
+    box-shadow var(--t-fast) var(--ease-settle);
+}
+.pp-set__choice[data-layout='wrap'] .pp-set__opt {
+  flex: 0 1 auto;
+}
+
+.pp-set__opt:hover {
+  background: var(--paper-1);
+}
+.pp-set__opt:focus-visible {
+  outline: 2px solid var(--beni);
+  outline-offset: 2px;
+}
+
+/* Chosen: pressed into the page, not lit up. */
+.pp-set__opt[aria-checked='true'] {
+  background: var(--ink);
+  color: var(--paper-0);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.22);
+}
+.pp-set__opt[aria-checked='true'] .pp-set__optnote {
+  color: color-mix(in srgb, var(--paper-0) 76%, transparent);
+}
+
+.pp-set__optlabel {
+  display: block;
+}
+.pp-set__optnote {
+  display: block;
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
+
+:root[data-high-ink='true'] .pp-set__opt {
+  box-shadow: inset 0 0 0 2.5px var(--paper-edge);
+}
+:root[data-high-ink='true'] .pp-set__opt[aria-checked='true'] {
+  box-shadow: inset 0 0 0 2.5px var(--ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-set__opt { transition: none; }
+}

@@ -17,7 +17,7 @@
 
 import type { Crease, FoldRecipe, FoldStep, PaperMaterial, Vec2 } from '../../contracts'
 import { Fold3D } from '../../engine'
-import { landmarkFor, type Landmark } from '../../content/landmarks'
+import { landmarkFor, principal, type Landmark } from '../../content/landmarks'
 
 /** The Yoshizawa–Randlett arrows we draw. */
 export type ArrowKind =
@@ -114,8 +114,27 @@ const EDGE_ON = 0.4
  */
 const MIN_CREASE_PX = 24
 
-/** Which arrow a fold kind asks for. */
-function arrowFor(step: FoldStep): ArrowKind {
+/**
+ * An arrow shorter than this on screen is not an arrow.
+ *
+ * A step's two hint anchors are material points and a previous fold can carry
+ * them onto each other, exactly as it can a crease's endpoints — 41 of the
+ * corpus's 308 plates drew nothing at all. A plate with a fold line and no
+ * motion does not say which way the paper goes, which is the one thing the
+ * arrow is there for.
+ */
+const MIN_ARROW_PX = 46
+
+/**
+ * Which arrow a step asks for.
+ *
+ * `direction` is the direction of the crease actually being drawn. It matters
+ * because for several kinds the way the paper goes is NOT in the kind's name: a
+ * pinch, a petal and a pull can each be a mountain, and falling through to the
+ * valley arrow drew a solid valley head over a dash-dot mountain line — a plate
+ * that contradicts itself, which is worse than a plate with no arrow.
+ */
+function arrowFor(step: FoldStep, direction: 'valley' | 'mountain' | null): ArrowKind {
   switch (step.kind) {
     case 'flip':
       return 'turn'
@@ -133,8 +152,11 @@ function arrowFor(step: FoldStep): ArrowKind {
     // the line style already says which way it was folded.
     case 'crease':
       return 'unfold'
-    default:
+    case 'valley':
       return 'valley'
+    default:
+      // pinch, petal, pull: a fold, whose direction is in the crease.
+      return direction === 'mountain' ? 'mountain' : 'valley'
   }
 }
 
@@ -339,7 +361,13 @@ export function buildDiagrams(recipe: FoldRecipe, material: PaperMaterial): Diag
     }
     facets.sort((a, b) => a.depth - b.depth)
 
-    const dir = step ? step.creases[0]?.direction ?? null : null
+    /* The direction of the crease we are actually drawing.
+       This used to read creases[0] while the geometry came from the longest
+       crease, so on a step that lays several — the classical collapses lay four
+       — the dashes could be describing a different fold from the line under
+       them. Both now come from the same crease. */
+    const principalCrease = step ? principal(step.creases) : null
+    const dir = principalCrease?.direction ?? null
 
     /* Where the fold line falls on the model — walked, not taken from the frame.
        `frame.axis` is the projection of the crease's two authored endpoints,
@@ -365,8 +393,57 @@ export function buildDiagrams(recipe: FoldRecipe, material: PaperMaterial): Diag
        On paper you fold the sheet over that line and open it again, so the
        arrow has to cross the line, not follow it. Synthesise that. */
     let arrow = step && f.hint
-      ? { from: [f.hint.from[0], f.hint.from[1]] as Vec2, to: [f.hint.to[0], f.hint.to[1]] as Vec2, kind: arrowFor(step) }
+      ? {
+          from: [f.hint.from[0], f.hint.from[1]] as Vec2,
+          to: [f.hint.to[0], f.hint.to[1]] as Vec2,
+          kind: arrowFor(step, dir),
+        }
       : null
+    /* Rescue an arrow that projected onto a point.
+       Across the crease for anything that folds — that is the motion, and it
+       is the same construction a pre-crease uses. For the model moves (turn
+       over, rotate, press) there is no crease to cross, so the arrow spans the
+       model itself, which is what those symbols describe anyway. */
+    const arrowSpan = arrow
+      ? Math.hypot(arrow.to[0] - arrow.from[0], arrow.to[1] - arrow.from[1])
+      : 0
+    if (step && arrowSpan < MIN_ARROW_PX) {
+      const kind = arrowFor(step, dir)
+      if (axis) {
+        const dx = axis.to[0] - axis.from[0]
+        const dy = axis.to[1] - axis.from[1]
+        const len = Math.hypot(dx, dy)
+        if (len > 1) {
+          const mx = (axis.from[0] + axis.to[0]) / 2
+          const my = (axis.from[1] + axis.to[1]) / 2
+          const r = Math.max(MIN_ARROW_PX * 0.6, len * 0.28)
+          arrow = {
+            from: [mx + (-dy / len) * r, my + (dx / len) * r],
+            to: [mx - (-dy / len) * r, my - (dx / len) * r],
+            kind,
+          }
+        }
+      } else {
+        let x0 = Infinity
+        let y0 = Infinity
+        let x1 = -Infinity
+        let y1 = -Infinity
+        for (const rf of f.facets) {
+          for (const p of rf.points) {
+            if (p[0] < x0) x0 = p[0]
+            if (p[0] > x1) x1 = p[0]
+            if (p[1] < y0) y0 = p[1]
+            if (p[1] > y1) y1 = p[1]
+          }
+        }
+        if (Number.isFinite(x0) && x1 - x0 > 1) {
+          const cy = (y0 + y1) / 2
+          const inset = (x1 - x0) * 0.16
+          arrow = { from: [x0 + inset, cy], to: [x1 - inset, cy], kind }
+        }
+      }
+    }
+
     if (step && step.kind === 'crease' && axis) {
       const ax = axis
       const dx = ax.to[0] - ax.from[0]

@@ -17,7 +17,7 @@ import {
   useWallet,
 } from '../../systems'
 import { audio, haptics } from '../../audio'
-import { useNavigation } from '../../shell/Navigator'
+import { useNavigation, useRouteParams } from '../../shell/Navigator'
 import { Button, Chip, GoldLeafPill, Icon, IconButton, Meter, Paper, SheetsPill, Tabs, useToast } from '../../ui'
 import WashiSwatch from '../codex/WashiSwatch'
 import './shop.css'
@@ -41,7 +41,13 @@ export default function ShopScreen() {
   const pendingSku = usePurchasePending()
   const pending = pendingSku !== null
   const toast = useToast()
-  const [tab, setTab] = useState<string>('subscription')
+  /* Openable at a section. Without this the Shop always landed on The Atelier,
+     so any link about the Fold Journal — a thing the player has already earned
+     — would have dropped them on a subscription pitch instead. */
+  const { tab: wantTab } = useRouteParams<{ tab: string }>()
+  const [tab, setTab] = useState<string>(() =>
+    wantTab && SECTIONS.some((s) => s.id === wantTab) ? wantTab : 'subscription',
+  )
 
   const packs = useMemo(() => washiByPack(), [])
 

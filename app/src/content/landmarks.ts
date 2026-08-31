@@ -205,8 +205,14 @@ export interface Landmark {
 /** The kinds that move the model rather than the paper. They have no landmark. */
 const CREASELESS = new Set(['flip', 'rotate', 'press', 'inflate'])
 
-/** Longest crease first: when a step lays several, the lesson is the long one. */
-function principal(creases: readonly Crease[]): Crease | null {
+/**
+ * Longest crease first: when a step lays several, the lesson is the long one.
+ *
+ * Exported because a diagram has to draw the same crease this names — taking
+ * the line style from one crease and the geometry from another puts dashes on
+ * a plate that describe a different fold.
+ */
+export function principal(creases: readonly Crease[]): Crease | null {
   let best: Crease | null = null
   let bestLen = 0
   for (const c of creases) {

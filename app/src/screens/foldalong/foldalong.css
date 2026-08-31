@@ -267,9 +267,14 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* Hollow, as print means it: the head is an outline and the paper shows
+   through. Filling it with a paper token made it a dark shape at night —
+   legible, but inverted from the convention it is supposed to teach. */
 .pp-dia__hollow {
-  fill: var(--paper-1);
+  fill: none;
   stroke: var(--ink);
+  stroke-width: 9;
+  stroke-linejoin: round;
 }
 .pp-dia__stem-hollow {
   stroke: var(--ink);
@@ -294,8 +299,11 @@
     animation: none;
   }
 }
-:root[data-ink='high'] .pp-dia__paper polygon { stroke-width: 8; }
-:root[data-ink='high'] .pp-dia__crease { opacity: 1; }
+/* The setting paints `data-high-ink` on the root — these rules named an
+   attribute nothing sets, so High Ink did nothing to a diagram at all. */
+:root[data-high-ink='true'] .pp-dia__paper polygon { stroke-width: 8; }
+:root[data-high-ink='true'] .pp-dia__crease { opacity: 1; }
+:root[data-high-ink='true'] .pp-dia__arrow { stroke-width: 9; }
 
 /* ── tablet ─────────────────────────────────────────────────────────────── */
 @media (min-width: 760px) {
