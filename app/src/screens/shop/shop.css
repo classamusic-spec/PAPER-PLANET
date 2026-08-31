@@ -32,6 +32,19 @@
 .pp-shop__tabs { padding: 0 var(--s-4) var(--s-2); flex: 0 0 auto; overflow-x: auto; scrollbar-width: none; }
 .pp-shop__tabs::-webkit-scrollbar { display: none; }
 
+/* The four section tabs need 433px and a 390px phone gives the strip 358. It
+   scrolls, but nothing said so — the Fold Journal was simply not on the screen,
+   and its centre was not tappable even where it was. Wrapping to a second row
+   is truer to the index-card tabs than a hidden sideways scroll. */
+@media (max-width: 470px) {
+  .pp-shop__tabs { overflow-x: visible; }
+  .pp-shop__tabs .pp-tabs__list {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 4px;
+  }
+}
+
 .pp-shop__scroll {
   flex: 1 1 auto;
   min-height: 0;
