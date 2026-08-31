@@ -3,7 +3,7 @@
 import { CODEX } from '../codex'
 import { eye } from '../art'
 import { TOKEN, hue, shade } from '../palette'
-import { CAM, PT, kiteBase, mountain, press, pull, reverseAt, crease } from '../recipes'
+import { CAM, PT, SQ, kiteBase, mountain, press, pull, reverseAt, crease } from '../recipes'
 import type { SpeciesDef } from '../types'
 
 const B = hue(TOKEN.beni)
@@ -53,7 +53,10 @@ export const crane: SpeciesDef = {
       }),
       pull(
         'wing',
-        [crease([250, 250], PT.RQ, [600, 300], 'valley', 100)],
+        // From the apex of the half-fold, out past the shoulder. The hinge has
+        // to START on the spine: a wing crease that cuts ACROSS the spine drags
+        // the body fold along with the wing and the bird comes apart.
+        [crease(PT.TL, [SQ, 620], [900, 300], 'valley', 100)],
         [600, 300],
         [640, 180],
         {

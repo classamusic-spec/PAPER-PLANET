@@ -92,7 +92,11 @@ export interface KamiPaintOptions {
   gold?: boolean
   /** Hairline edge colour. Omit for none. */
   hair?: string
-  /** Hairline weight, in art units. High Ink asks for more. */
+  /**
+   * Hairline weight in *card* pixels, not art units. The Codex draws a 1.5-unit
+   * edge inside a 200-unit box shown at about 200px, so the hair it means is
+   * roughly two pixels wide however big the creature is printed.
+   */
   hairWidth?: number
 }
 
@@ -103,9 +107,10 @@ function paintArt(
   bounds: Rect,
   p: CardPalette,
   opts: KamiPaintOptions,
+  scale: number,
 ): void {
   const hair = opts.hair ?? p.inkHair
-  const hairWidth = opts.hairWidth ?? 1.5
+  const hairWidth = (opts.hairWidth ?? 2.4) / scale
   ctx.lineJoin = 'round'
 
   for (const poly of art) {
@@ -183,7 +188,7 @@ export function paintKami(
   ctx.translate(drawn.x, drawn.y)
   ctx.scale(scale, scale)
   ctx.translate(-b.x, -b.y)
-  paintArt(ctx, art, b, p, { ...opts, hairWidth: (opts.hairWidth ?? 1.5) / Math.max(0.35, scale / 3) })
+  paintArt(ctx, art, b, p, opts, scale)
   ctx.restore()
 
   return drawn
