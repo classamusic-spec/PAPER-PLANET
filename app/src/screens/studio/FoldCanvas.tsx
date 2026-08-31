@@ -26,6 +26,8 @@ import {
 const COMMIT_THRESHOLD = 0.68
 /** Seconds of eased travel when a fold finishes itself after release. */
 const SETTLE_MS = 260
+/** How close a touch must land to the handle to count as grabbing it. */
+const GRAB_RADIUS = 52
 /** Orbit sensitivity, degrees per pixel. */
 const ORBIT_YAW = 0.42
 const ORBIT_PITCH = 0.3
@@ -193,6 +195,7 @@ export default function FoldCanvas({
   const dprRef = useRef(1)
   const fillRef = useRef(fill ?? 0.82)
   const stepRefRef = useRef<StepRef>({ hint: null, axisLen: 200, synthesised: false })
+  const grabbedRef = useRef(false)
 
   stepRef.current = stepIndex
   completeRef.current = complete
@@ -333,7 +336,7 @@ export default function FoldCanvas({
 
     const rec = createGestureRecogniser(host, {
       assist,
-      onStart: () => {
+      onStart: (g) => {
         void audio.unlock()
         orbitingRef.current = false
         settleRef.current = null
@@ -358,20 +361,33 @@ export default function FoldCanvas({
           axisLen: axis ? Math.hypot(axis.to[0] - axis.from[0], axis.to[1] - axis.from[1]) : 200,
           synthesised,
         }
+        // Landing on the handle is an unambiguous "I am folding this".
+        const anchor = hint?.from
+        const near =
+          !!anchor && Math.hypot(g.x - anchor[0], g.y - anchor[1]) <= GRAB_RADIUS
+        grabbedRef.current = near
+        if (near) {
+          audio.play('sheet.pickup', { volume: 0.5 })
+          haptics.fire('tick')
+        }
       },
       onClassify: (kind: GestureKind) => {
         const s = recRef.current?.state()
-        const frame = frameRef.current
         const cur = recipe.steps[stepRef.current]
-        if (!s || !frame || !cur) return
-        // A gesture the current step does not want becomes a free orbit, so the
-        // player can always look at their paper from another angle.
-        const wanted = cur.gesture
-        const isOrbit =
-          completeRef.current ||
-          (kind === 'twist' && wanted !== 'twist') ||
-          (kind === 'drag' && wanted !== 'drag' && wanted !== 'swipe' && wanted !== 'tap')
-        orbitingRef.current = isOrbit
+        if (!s || !cur) return
+        /**
+         * One finger always folds. Two fingers orbit.
+         *
+         * The old rule orbited whenever the recogniser's classification did not
+         * match the step, which broke the first step of every recipe: a rub is
+         * only *called* a rub after two confirmed reversals, so the opening
+         * stroke arrives as 'drag', did not match 'rub', and latched the model
+         * into an orbit. The paper just spun under your finger.
+         */
+        const twoUp = s.pointers >= 2
+        const wantsTwo =
+          cur.gesture === 'pinch-in' || cur.gesture === 'pinch-out' || cur.gesture === 'twist'
+        orbitingRef.current = completeRef.current || (twoUp && !wantsTwo && kind !== 'swipe')
       },
       onUpdate: (s) => {
         const engine = engineRef.current
@@ -418,6 +434,7 @@ export default function FoldCanvas({
       },
       onEnd: (s) => {
         audio.frictionEnd()
+        grabbedRef.current = false
         if (orbitingRef.current) {
           orbitingRef.current = false
           return
@@ -515,7 +532,7 @@ export default function FoldCanvas({
       if (import.meta.env.DEV) {
         ;(window as unknown as { __ppFrame?: PaperFrame }).__ppFrame = frame
       }
-      paint(ctx, frame, dprRef.current, guidesRef.current && !completeRef.current)
+      paint(ctx, frame, dprRef.current, guidesRef.current && !completeRef.current, grabbedRef.current, progressRef.current)
     }
 
     rafRef.current = requestAnimationFrame(tick)
@@ -604,6 +621,8 @@ function paint(
   frame: PaperFrame,
   dpr: number,
   guides: boolean,
+  grabbed: boolean,
+  progress: number,
 ) {
   const { canvas } = ctx
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -718,15 +737,38 @@ function paint(
     ctx.closePath()
     ctx.fill()
 
-    // the fingertip
-    ctx.globalAlpha = 1
+    ctx.restore()
+
+    /* The handle. This is the thing you actually put a finger on, so it is
+       drawn at a real thumb's size, says when it is held, and carries the
+       fold's progress around its rim. */
+    const R = grabbed ? 21 : 16
+    ctx.save()
+    // a soft halo so the target reads before you touch it
+    ctx.globalAlpha = grabbed ? 0.3 : 0.16 + 0.06 * Math.sin(performance.now() / 420)
     ctx.fillStyle = '#E0A340'
-    ctx.strokeStyle = '#2E2438'
-    ctx.lineWidth = 2.5
     ctx.beginPath()
-    ctx.arc(h.from[0], h.from[1], 9, 0, Math.PI * 2)
+    ctx.arc(h.from[0], h.from[1], R + 15, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.globalAlpha = 1
+    ctx.fillStyle = grabbed ? '#F2BC5E' : '#E0A340'
+    ctx.strokeStyle = '#2E2438'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.arc(h.from[0], h.from[1], R, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
+
+    // progress rim: the fold filling in as you pull
+    if (progress > 0.01) {
+      ctx.strokeStyle = '#7E9E7B'
+      ctx.lineWidth = 5
+      ctx.lineCap = 'round'
+      ctx.beginPath()
+      ctx.arc(h.from[0], h.from[1], R + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, progress))
+      ctx.stroke()
+    }
     ctx.restore()
   }
 

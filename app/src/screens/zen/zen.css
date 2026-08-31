@@ -27,8 +27,13 @@
 .pp-zen__chrome {
   transition: opacity var(--t-slow) var(--ease-paper);
 }
-.pp-zen.is-quiet .pp-zen__chrome { opacity: 0.16; }
-.pp-zen.is-quiet .pp-zen__say { opacity: 0.55; }
+/*
+ * Only the controls recede. Fading the instruction too left the screen
+ * unreadable — you could not tell what the fold wanted, which is the opposite
+ * of calm.
+ */
+.pp-zen.is-quiet .pp-zen__head { opacity: 0.34; }
+.pp-zen.is-quiet .pp-zen__say { opacity: 0.8; }
 
 .pp-zen__head {
   display: flex;

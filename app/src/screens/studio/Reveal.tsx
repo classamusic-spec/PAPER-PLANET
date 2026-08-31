@@ -11,6 +11,7 @@ import type {
 import { actions } from '../../systems'
 import { audio, haptics } from '../../audio'
 import { Button, Icon, Paper } from '../../ui'
+import KamiMark from '../codex/KamiMark'
 import FoldCanvas from './FoldCanvas'
 import './reveal.css'
 
@@ -46,7 +47,18 @@ export default function Reveal({
   const [outcome, setOutcome] = useState<Outcome | null>(null)
   const [name, setName] = useState('')
   const [naming, setNaming] = useState(false)
+  const [alive, setAlive] = useState(false)
   const settled = useRef(false)
+
+  /* A held breath, then the paper is a creature. */
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      setAlive(true)
+      audio.play('alive.breath')
+      haptics.fire('alive')
+    }, 620)
+    return () => clearTimeout(t)
+  }, [])
 
   /* Award exactly once. Zen is its own reward and pays nothing, by contract. */
   useEffect(() => {
@@ -92,18 +104,36 @@ export default function Reveal({
     <div className="pp-reveal">
       <div className="pp-reveal__desk" aria-hidden="true" />
 
-      {/* The finished model, still live — you can turn it in your hands. */}
-      <div className="pp-reveal__stage">
-        <FoldCanvas
-          recipe={recipe}
-          material={material}
-          stepIndex={recipe.steps.length - 1}
-          assist={false}
-          guides={false}
-          reducedMotion={false}
-          complete
-          fill={0.95}
-        />
+      {/*
+        The paper you folded, and then the creature it becomes.
+
+        Showing only the raw folded sheet was the weakest moment in the app: a
+        four-step butterfly is, geometrically, a triangle — correct, and deeply
+        unsatisfying to be handed as your reward. So the sheet holds for a beat
+        and then turns into the Kami.
+      */}
+      <div className={'pp-reveal__stage' + (alive ? ' is-alive' : '')}>
+        <div className="pp-reveal__paper" aria-hidden={alive}>
+          <FoldCanvas
+            recipe={recipe}
+            material={material}
+            stepIndex={recipe.steps.length - 1}
+            assist={false}
+            guides={false}
+            reducedMotion={false}
+            complete
+            fill={0.95}
+          />
+        </div>
+        <div className="pp-reveal__kami">
+          <KamiMark
+            art={species.art}
+            name={species.name}
+            size="100%"
+            mode="folded"
+            gold={result.golden}
+          />
+        </div>
       </div>
 
       <div className="pp-reveal__card">

@@ -20,7 +20,7 @@ const BEDS: { id: AmbienceId; label: string }[] = [
 ]
 
 /** Controls fade away while you fold, and come back when you touch the edge. */
-const IDLE_MS = 3200
+const IDLE_MS = 6000
 
 export default function ZenScreen() {
   const nav = useNavigation()
@@ -123,7 +123,7 @@ export default function ZenScreen() {
       </div>
 
       {/* A breathing guide you can fold along with. Nothing counts it. */}
-      <footer className="pp-zen__chrome pp-zen__foot">
+      <footer className="pp-zen__foot">
         <div className="pp-zen__breath" aria-hidden="true">
           <span />
         </div>

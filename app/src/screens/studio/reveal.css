@@ -239,3 +239,48 @@
     padding: var(--s-6) var(--s-6) var(--s-5);
   }
 }
+
+/* ── the paper becomes the creature ─────────────────────────────────────── */
+.pp-reveal__stage { position: relative; }
+.pp-reveal__paper,
+.pp-reveal__kami {
+  grid-area: 1 / 1;
+  transition: opacity 520ms var(--ease-paper), transform 620ms var(--ease-alive);
+}
+.pp-reveal__stage { display: grid; place-items: center; }
+
+.pp-reveal__paper { opacity: 1; transform: scale(1); }
+.pp-reveal__kami {
+  opacity: 0;
+  transform: scale(0.72) rotate(-6deg);
+  width: min(64vw, 34vh);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.pp-reveal__stage.is-alive .pp-reveal__paper { opacity: 0; transform: scale(0.86); }
+.pp-reveal__stage.is-alive .pp-reveal__kami {
+  opacity: 1;
+  transform: scale(1) rotate(0deg);
+  animation: pp-alive-breathe 4.2s var(--ease-paper) 700ms infinite;
+  filter: drop-shadow(0 10px 14px rgba(62, 44, 30, 0.2));
+}
+
+@keyframes pp-alive-breathe {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.02; }
+}
+
+@media (min-width: 900px) and (orientation: landscape) {
+  .pp-reveal__kami { width: min(34vw, 52vh); }
+}
+@media (min-width: 768px) and (orientation: portrait) {
+  .pp-reveal__kami { width: min(52vw, 38vh); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-reveal__paper, .pp-reveal__kami { transition-duration: var(--t-quick); }
+  .pp-reveal__stage.is-alive .pp-reveal__kami { animation: none; }
+}
