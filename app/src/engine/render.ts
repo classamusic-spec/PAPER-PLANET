@@ -664,6 +664,17 @@ export class Renderer {
   }
 
   /** Material-space point -> screen, following the facet that currently owns it. */
+  /**
+   * A material-space point, in screen space — or false when the point is not on
+   * any facet. Public because a caller sometimes needs a point the current step
+   * does not name: a crease whose two authored endpoints have been folded onto
+   * each other projects to nothing, and the only way back is to ask for other
+   * points along the same line.
+   */
+  projectPoint(p: Vec2, out: MutVec2): boolean {
+    return this.projectMaterial(p, out)
+  }
+
   private projectMaterial(p: Vec2 | null, out: MutVec2): boolean {
     if (!p) return false
     const sheet = this.sheet

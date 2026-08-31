@@ -1,0 +1,403 @@
+/* PAPER PLANET — Fold Along. A book page, not a game screen. */
+
+.pp-fa {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  /* A diagram page is paper, not the desk it lies on. */
+  background: var(--paper-0);
+  color: var(--ink);
+}
+
+/* ── head ───────────────────────────────────────────────────────────────── */
+.pp-fa__head {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+.pp-fa__title {
+  text-align: center;
+}
+.pp-fa__title h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+  margin: 0;
+}
+.pp-fa__title p {
+  font-family: var(--font-text);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 2px 0 0;
+}
+
+/* ── the page ───────────────────────────────────────────────────────────── */
+.pp-fa__page {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-content: center;
+  width: 100%;
+  padding: 0 var(--s-4);
+}
+/* The tap surface: over the page, under nothing. The page's own content is
+   text and pictures, so there is nothing beneath it to reach. */
+.pp-fa__tap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pp-fa__tap:disabled { cursor: default; }
+.pp-fa__tap:focus-visible {
+  outline: 2px solid var(--beni);
+  outline-offset: -6px;
+  border-radius: var(--r-3);
+}
+
+.pp-fa__plate,
+.pp-fa__setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+  max-width: 560px;
+  margin: 0 auto;
+  animation: pp-fa-in var(--t-slow) var(--ease-settle) both;
+}
+
+.pp-fa__dia {
+  width: 100%;
+  max-width: min(74vw, 420px);
+  aspect-ratio: 1;
+  flex: none;
+}
+
+.pp-fa__say {
+  text-align: center;
+}
+.pp-fa__n {
+  font-family: var(--font-text);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-2);
+}
+.pp-fa__say h2 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-size: var(--fs-display-m);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-display);
+  margin: 0;
+  text-wrap: balance;
+}
+.pp-fa__turned {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--kincha);
+  margin: var(--s-3) 0 0;
+}
+
+.pp-fa__detail {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: var(--s-3) 0 0;
+  text-wrap: balance;
+}
+
+/* The reference, printed as a diagram prints one. */
+.pp-fa__ref {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  margin: var(--s-3) 0 0;
+  padding: var(--s-1) var(--s-3);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+.pp-fa__reftick {
+  position: relative;
+  display: inline-block;
+  width: 11px;
+  height: 9px;
+  flex: none;
+  opacity: 0.72;
+}
+.pp-fa__reftick::before,
+.pp-fa__reftick::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 1.5px;
+  height: 100%;
+  background: currentColor;
+  border-radius: 1px;
+}
+.pp-fa__reftick::before { left: 2px; }
+.pp-fa__reftick::after { right: 2px; }
+
+/* ── setup ──────────────────────────────────────────────────────────────── */
+.pp-fa__setup h2 {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  margin: 0;
+}
+.pp-fa__setuplist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-3);
+  max-width: 42ch;
+}
+.pp-fa__setuplist li {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: var(--s-3);
+  align-items: start;
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+}
+.pp-fa__setuplist svg {
+  margin-top: 2px;
+  color: var(--kincha);
+}
+.pp-fa__tapnote {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  opacity: 0.7;
+  margin: 0;
+}
+
+/* ── foot ───────────────────────────────────────────────────────────────── */
+.pp-fa__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+}
+.pp-fa__dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 46%;
+}
+.pp-fa__dots li {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+  transition: background var(--t-fast) var(--ease-settle), transform var(--t-fast) var(--ease-settle);
+}
+.pp-fa__dots li.is-done { background: color-mix(in srgb, var(--matcha) 70%, transparent); }
+.pp-fa__dots li.is-here { background: var(--beni); transform: scale(1.5); }
+
+.pp-fa--empty {
+  display: grid;
+  place-content: center;
+  gap: var(--s-4);
+  min-height: 100dvh;
+  text-align: center;
+}
+
+@keyframes pp-fa-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── the notation ───────────────────────────────────────────────────────── */
+.pp-dia {
+  display: block;
+  overflow: visible;
+}
+.pp-dia__paper polygon {
+  stroke: var(--ink);
+  stroke-linejoin: round;
+  paint-order: fill stroke;
+}
+.pp-dia__crease {
+  stroke: var(--ink);
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+/* The two lines every origami book in the world uses. */
+.pp-dia__crease--valley { stroke-dasharray: 26 18; }
+.pp-dia__crease--mountain { stroke-dasharray: 30 14 4 14; }
+
+.pp-dia__arrow {
+  stroke: var(--ink);
+  fill: var(--ink);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pp-dia__hollow {
+  fill: var(--paper-1);
+  stroke: var(--ink);
+}
+.pp-dia__stem-hollow {
+  stroke: var(--ink);
+  opacity: 0.35;
+}
+.pp-dia__frac {
+  font-family: var(--font-text);
+  font-size: 34px;
+  font-weight: 700;
+  fill: var(--ink);
+  stroke: none;
+}
+.pp-dia__mark {
+  fill: none;
+  stroke: var(--beni);
+}
+
+/* ── reduced motion & high ink ──────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pp-fa__plate,
+  .pp-fa__setup {
+    animation: none;
+  }
+}
+:root[data-ink='high'] .pp-dia__paper polygon { stroke-width: 8; }
+:root[data-ink='high'] .pp-dia__crease { opacity: 1; }
+
+/* ── tablet ─────────────────────────────────────────────────────────────── */
+@media (min-width: 760px) {
+  .pp-fa__plate {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--s-6);
+    max-width: 900px;
+  }
+  .pp-fa__dia { max-width: 420px; }
+  .pp-fa__say { text-align: left; }
+}
+
+/* ── the printable sheet ────────────────────────────────────────────────── */
+.pp-fa__print { display: none; }
+
+@media print {
+  .pp-fa__head,
+  .pp-fa__page,
+  .pp-fa__foot {
+    display: none !important;
+  }
+  /* The app paints a desk behind everything; a printed page is white. */
+  html,
+  body,
+  #root,
+  .pp-fa {
+    min-height: 0;
+    background: #fff !important;
+    color: #000;
+  }
+  .pp-fa__print {
+    display: block;
+    color: #000;
+  }
+  .pp-fa__printhead h2 {
+    font-family: var(--font-display);
+    font-size: 22pt;
+    margin: 0;
+  }
+  .pp-fa__printhead p {
+    font-family: var(--font-text);
+    font-size: 9pt;
+    margin: 2pt 0 10pt;
+  }
+  .pp-fa__grid {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8pt;
+  }
+  .pp-fa__grid li {
+    break-inside: avoid;
+  }
+  .pp-fa__grid .pp-dia {
+    width: 100%;
+    aspect-ratio: 1;
+    max-width: none;
+  }
+  .pp-fa__grid p {
+    font-family: var(--font-text);
+    font-size: 7.5pt;
+    line-height: 1.35;
+    margin: 2pt 0 0;
+  }
+  .pp-fa__cp {
+    margin-top: 10pt;
+    break-inside: avoid;
+    display: grid;
+    grid-template-columns: 34% 1fr;
+    gap: 10pt;
+    align-items: center;
+  }
+  .pp-fa__cp h3 {
+    grid-column: 1 / -1;
+    font-family: var(--font-display);
+    font-size: 12pt;
+    margin: 0;
+  }
+  .pp-fa__cp p {
+    font-family: var(--font-text);
+    font-size: 8pt;
+    margin: 0;
+  }
+  .pp-fa__cpsheet {
+    fill: #fff;
+    stroke: #000;
+    stroke-width: 5;
+  }
+  .pp-fa__printfoot {
+    font-family: var(--font-text);
+    font-size: 7pt;
+    margin-top: 10pt;
+    opacity: 0.7;
+  }
+  /* Ink on white, whatever the screen was doing. */
+  .pp-dia__paper polygon { stroke: #000; }
+  .pp-dia__crease { stroke: #000; opacity: 1; }
+  .pp-dia__arrow { stroke: #000; fill: #000; }
+  .pp-dia__hollow { fill: #fff; stroke: #000; }
+  .pp-dia__frac { fill: #000; }
+  @page { margin: 12mm; }
+}

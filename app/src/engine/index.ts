@@ -289,6 +289,20 @@ export class Fold3D implements FoldEngine {
     this.renderer.shadows = on
   }
 
+  /**
+   * Where a point of the flat sheet has ended up on screen, or null when that
+   * point is not on any facet. Valid against the last render().
+   *
+   * Public because a caller sometimes needs a point the current step does not
+   * name. A crease whose two authored endpoints have been folded onto each
+   * other projects to nothing at all, from any camera, and the only way back is
+   * to ask for other points along the same line.
+   */
+  project(p: Vec2): Vec2 | null {
+    const out: [number, number] = [0, 0]
+    return this.renderer.projectPoint(p, out) ? out : null
+  }
+
   /** A retained deep copy — render()'s frame is pooled and mutated in place. */
   renderCopy(): PaperFrame {
     return this.renderer.snapshot(this.render())

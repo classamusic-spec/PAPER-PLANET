@@ -446,7 +446,17 @@ export interface StoreProvider {
    6. NAVIGATION                                                      [shell/]
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export type ScreenId = 'title' | 'planet' | 'select' | 'studio' | 'codex' | 'shop' | 'settings' | 'zen'
+export type ScreenId =
+  | 'title'
+  | 'planet'
+  | 'select'
+  | 'studio'
+  | 'codex'
+  | 'shop'
+  | 'settings'
+  | 'zen'
+  /** Fold Along: the diagrams, for folding on real paper. */
+  | 'foldalong'
 
 /** Everything the Studio needs to run a session. */
 export interface StudioSession {

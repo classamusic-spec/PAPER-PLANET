@@ -223,8 +223,14 @@ export default function StudioScreen() {
         </ol>
 
         {/* "Show me" used to live here, for assist mode only. It is now in the
-            footer, in the thumb zone, for everyone. */}
-        <div className="pp-studio__spacer" />
+            footer, in the thumb zone, for everyone. The slot holds the way out
+            to real paper instead: the diagrams for this same fold. */}
+        <IconButton
+          icon="sheets"
+          label="Fold this on real paper"
+          variant="quiet"
+          onClick={() => nav.push('foldalong', { speciesId: species?.id })}
+        />
       </header>
 
       {golden && (

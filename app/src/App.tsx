@@ -17,6 +17,7 @@ const screens: Record<ScreenId, React.LazyExoticComponent<() => ReactNode>> = {
   shop: lazy(() => import('./screens/shop')),
   settings: lazy(() => import('./screens/settings')),
   zen: lazy(() => import('./screens/zen')),
+  foldalong: lazy(() => import('./screens/foldalong')),
 }
 
 function renderScreen(route: Route): ReactNode {
