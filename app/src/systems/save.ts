@@ -156,6 +156,10 @@ export const SYS_KEY = {
   graceUsedOn: 'grace-used-on',
   /** `sys/mastery-paid/<tier>/<speciesId>` — a one-time Gold Leaf milestone. */
   masteryPaid: 'mastery-paid',
+  /** The Practice Sheet: best sheet ever, last day practised, days in a row. */
+  drillBest: 'drill-best',
+  drillDay: 'drill-day',
+  drillStreak: 'drill-streak',
 } as const
 
 export function hasSeen(seen: readonly string[], flag: FlagName): boolean {

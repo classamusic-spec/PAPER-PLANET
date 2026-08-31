@@ -53,6 +53,9 @@ import {
   type TendOutcome,
   type UnlockState,
   claimMasteryMilestone,
+  readPractice,
+  recordPractice as recordPracticeIn,
+  type PracticeLog,
   collectionSize,
   collectionSummary,
   decayBond,
@@ -215,6 +218,8 @@ export interface GameActions {
 
   /* flags & notices */
   markSeen(flag: FlagName): void
+  /** Record a finished Practice Sheet. Pays nothing; it only keeps the record. */
+  recordPractice(score: number): PracticeLog
   dismissNotice(): void
 
   /* save management */
@@ -856,6 +861,13 @@ export function createGameStore(options: GameStoreOptions = {}): StoreApi<GameSt
         set({ seen: markSeenIn(get().seen, flag) })
       },
 
+      recordPractice(score) {
+        const state = get()
+        const out = recordPracticeIn(state.seen, state.today, score)
+        set({ seen: out.seen })
+        return out.log
+      },
+
       dismissNotice() {
         set({ notice: null })
       },
@@ -1000,6 +1012,19 @@ export const useWallet = (): { sheets: number; goldLeaf: number } =>
 export const useAtelier = (): boolean => useGame((s) => isAtelierMember(s.entitlements))
 export const useStorefrontOpen = (): boolean => useGame((s) => isStorefrontOpen(s))
 export const useHasSeen = (flag: FlagName): boolean => useGame((s) => hasSeenIn(s.seen, flag))
+
+/**
+ * The Practice Sheet's record: best ever, days in a row, done today.
+ *
+ * Derived outside the selector. `readPractice` builds a fresh object, and a
+ * selector that returns a new object every call never compares equal — the
+ * store re-renders, re-derives, and re-renders again until React gives up.
+ */
+export const usePractice = (): PracticeLog => {
+  const seen = useGame((s) => s.seen)
+  const today = useGame((s) => s.today)
+  return useMemo(() => readPractice(seen, today), [seen, today])
+}
 export const useFoldCount = (speciesId: string): number => useGame((s) => s.folds[speciesId] ?? 0)
 export const useMastery = (speciesId: string): MasteryTier => useGame((s) => masteryFor(s.folds[speciesId] ?? 0))
 export const useMasteryProgress = (speciesId: string) => useGame(useShallow((s) => masteryProgress(s.folds[speciesId] ?? 0)))
@@ -1068,6 +1093,7 @@ export const actions: GameActions = {
   setVolume: (b, v) => gameStore().getState().setVolume(b, v),
   resetSettings: () => gameStore().getState().resetSettings(),
   markSeen: (f) => gameStore().getState().markSeen(f),
+  recordPractice: (s) => gameStore().getState().recordPractice(s),
   dismissNotice: () => gameStore().getState().dismissNotice(),
   exportSaveJson: () => gameStore().getState().exportSaveJson(),
   importSaveJson: (j) => gameStore().getState().importSaveJson(j),

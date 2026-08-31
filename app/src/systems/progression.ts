@@ -5,6 +5,7 @@ import { MASTERY_MULT, masteryGoldLeaf } from './economy'
 import { ENT, hasEntitlement, isAtelierMember } from './commerce'
 import { DAY_MS, SYS_KEY, clearFlagFamily, readFlag, readFlagNumber, writeFlag } from './save'
 import { clamp, clamp01, type Rng } from './rand'
+import { daysBetween } from './daily'
 import type { BiomeLike, ContentIndex } from './types'
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -506,4 +507,65 @@ export function collectionSummary(
     grand,
     byBiome,
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE PRACTICE SHEET
+
+   A separate ledger from folding, because it answers a different question:
+   folding asks what you have made, practice asks whether your hands are
+   getting steadier. It pays nothing — the reward for practising is being
+   better at the thing, and BRAND section 12 keeps it that way.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export interface PracticeLog {
+  /** Best sheet average ever, 0..1. */
+  best: number
+  /** Days in a row with a sheet finished. */
+  streak: number
+  /** The last day a sheet was finished, or null. */
+  lastDay: string | null
+  /** True once today's sheet is done. */
+  doneToday: boolean
+}
+
+export function readPractice(seen: readonly string[], dateKey: string): PracticeLog {
+  const lastDay = readFlag(seen, SYS_KEY.drillDay)
+  return {
+    best: clamp01(readFlagNumber(seen, SYS_KEY.drillBest, 0)),
+    streak: Math.max(0, Math.round(readFlagNumber(seen, SYS_KEY.drillStreak, 0))),
+    lastDay,
+    doneToday: lastDay === dateKey,
+  }
+}
+
+/**
+ * Record a finished sheet.
+ *
+ * A second sheet on the same day still updates your best — practising more is
+ * never punished — but it does not advance the streak twice. And a missed day
+ * restarts the streak at one rather than zeroing it, which is the same promise
+ * the Daily Fold makes: coming back is always worth something.
+ */
+export function recordPractice(
+  seen: readonly string[],
+  dateKey: string,
+  score: number,
+): { seen: string[]; log: PracticeLog } {
+  const before = readPractice(seen, dateKey)
+  const clean = clamp01(Number.isFinite(score) ? score : 0)
+
+  let next = seen as string[]
+  const best = Math.max(before.best, clean)
+  if (best !== before.best) next = writeFlag(next, SYS_KEY.drillBest, best.toFixed(4))
+
+  let streak = before.streak
+  if (!before.doneToday) {
+    const gap = before.lastDay ? daysBetween(before.lastDay, dateKey) : Infinity
+    streak = gap === 1 ? before.streak + 1 : 1
+    next = writeFlag(next, SYS_KEY.drillDay, dateKey)
+    next = writeFlag(next, SYS_KEY.drillStreak, streak)
+  }
+
+  return { seen: next, log: { best, streak, lastDay: dateKey, doneToday: true } }
 }

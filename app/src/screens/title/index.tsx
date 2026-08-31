@@ -213,6 +213,9 @@ export default function TitleScreen() {
                   <Button variant="ghost" size="md" icon="codex" onClick={() => nav.push('codex')}>
                     Codex
                   </Button>
+                  <Button variant="ghost" size="md" icon="hand" onClick={() => nav.push('drill')}>
+                    Practice
+                  </Button>
                   <Button variant="ghost" size="md" icon="moon" onClick={() => nav.push('zen')}>
                     Zen
                   </Button>

@@ -457,6 +457,8 @@ export type ScreenId =
   | 'zen'
   /** Fold Along: the diagrams, for folding on real paper. */
   | 'foldalong'
+  /** The Practice Sheet: five scored folds a day. */
+  | 'drill'
 
 /** Everything the Studio needs to run a session. */
 export interface StudioSession {

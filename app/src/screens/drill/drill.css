@@ -1,0 +1,285 @@
+/* PAPER PLANET — The Practice Sheet. A workbench, not a scoreboard. */
+
+.pp-drill {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--paper-3);
+  color: var(--ink);
+}
+
+.pp-drill--empty {
+  display: grid;
+  place-content: center;
+  gap: var(--s-4);
+  text-align: center;
+}
+
+/* ── head ───────────────────────────────────────────────────────────────── */
+.pp-drill__head {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+}
+.pp-drill__title { text-align: center; }
+.pp-drill__title h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
+  margin: 0;
+}
+.pp-drill__title p {
+  font-family: var(--font-text);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 2px 0 0;
+}
+
+.pp-drill__pips {
+  display: flex;
+  gap: 5px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pp-drill__pips li {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 15%, transparent);
+  transition: background var(--t-fast) var(--ease-settle), transform var(--t-fast) var(--ease-settle);
+}
+.pp-drill__pips li.is-now { background: var(--beni); transform: scale(1.35); }
+.pp-drill__pips li.is-clean { background: var(--matcha); }
+.pp-drill__pips li.is-close { background: var(--kincha); }
+.pp-drill__pips li.is-rough { background: color-mix(in srgb, var(--ink) 38%, transparent); }
+
+/* ── the reference: the only instruction ────────────────────────────────── */
+.pp-drill__ask {
+  text-align: center;
+  padding: var(--s-3) var(--s-5) var(--s-2);
+}
+.pp-drill__from {
+  font-family: var(--font-text);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-2);
+}
+.pp-drill__ask h2 {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-size: var(--fs-display-m);
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-display);
+  margin: 0;
+  text-wrap: balance;
+}
+
+/* ── the stage ──────────────────────────────────────────────────────────── */
+.pp-drill__stage {
+  position: relative;
+  flex: 1;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: var(--s-2);
+}
+/* The square the paper lives in. Stretching the canvas to the stage instead
+   left the model wider than the viewport and clipped at the right edge — the
+   engine frames to the canvas it is given, so the canvas has to be the shape
+   the paper needs. Same rule the Studio uses, sized down for the shorter stage
+   this screen leaves after the reference. */
+.pp-drill__stage .pp-fold-canvas {
+  width: min(92vw, 46vh);
+  aspect-ratio: 1;
+  max-width: 560px;
+}
+
+/* ── the number, the moment it lands ────────────────────────────────────── */
+/* The card sits under the fold rather than over it. Covering the paper hid the
+   thing being judged: you want to see the crease you just made next to the
+   number it earned. */
+.pp-drill__land {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding: var(--s-4);
+  pointer-events: none;
+  animation: pp-drill-land var(--t-slow) var(--ease-settle) both;
+}
+.pp-drill__land > * {
+  pointer-events: auto;
+}
+.pp-drill__landcard {
+  text-align: center;
+  padding: var(--s-4) var(--s-5);
+  max-width: 22rem;
+}
+.pp-drill__landscore,
+.pp-drill__big {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 600;
+  font-size: var(--fs-display-l);
+  line-height: 1;
+  letter-spacing: var(--tracking-display);
+  margin: 0;
+}
+.pp-drill__landscore[data-tone='clean'],
+.pp-drill__big[data-tone='clean'] { color: var(--matcha); }
+.pp-drill__landscore[data-tone='close'],
+.pp-drill__big[data-tone='close'] { color: var(--kincha); }
+.pp-drill__landscore[data-tone='rough'],
+.pp-drill__big[data-tone='rough'] { color: var(--ink-soft); }
+
+.pp-drill__landgrade,
+.pp-drill__grade {
+  font-family: var(--font-display);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  margin: var(--s-2) 0 0;
+}
+.pp-drill__landnote {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  color: var(--ink-soft);
+  margin: var(--s-2) 0 var(--s-4);
+  text-wrap: balance;
+}
+
+@keyframes pp-drill-land {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* ── the finished sheet ─────────────────────────────────────────────────── */
+.pp-drill__done {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: var(--s-4);
+  overflow-y: auto;
+}
+.pp-drill__card {
+  text-align: center;
+  padding: var(--s-5);
+  max-width: 26rem;
+  width: 100%;
+}
+.pp-drill__eyebrow {
+  font-family: var(--font-text);
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-3);
+}
+
+.pp-drill__tally {
+  list-style: none;
+  margin: var(--s-5) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-2);
+  text-align: left;
+}
+.pp-drill__tally li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s-1) var(--s-3);
+  padding-bottom: var(--s-2);
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.pp-drill__tallyname {
+  font-family: var(--font-text);
+  font-size: var(--fs-body);
+  font-weight: 700;
+}
+.pp-drill__tallyref {
+  grid-column: 1;
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+}
+.pp-drill__tallyscore {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  font-family: var(--font-display);
+  font-size: var(--fs-body-l);
+  font-weight: 600;
+}
+.pp-drill__tallyscore[data-tone='clean'] { color: var(--matcha); }
+.pp-drill__tallyscore[data-tone='close'] { color: var(--kincha); }
+.pp-drill__tallyscore[data-tone='rough'] { color: var(--ink-soft); }
+
+.pp-drill__record {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-5);
+  flex-wrap: wrap;
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-3);
+}
+.pp-drill__record span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.pp-drill__tomorrow {
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+  margin: 0 0 var(--s-5);
+  text-wrap: balance;
+}
+.pp-drill__acts {
+  display: flex;
+  gap: var(--s-3);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── foot ───────────────────────────────────────────────────────────────── */
+.pp-drill__foot {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-5);
+  padding: var(--s-3) var(--s-4);
+  padding-bottom: max(var(--s-4), env(safe-area-inset-bottom));
+  font-family: var(--font-text);
+  font-size: var(--fs-label);
+  color: var(--ink-soft);
+}
+.pp-drill__foot p {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pp-drill__land { animation: none; }
+  .pp-drill__pips li { transition: none; }
+}
+
+@media (min-width: 760px) {
+  .pp-drill__ask h2 { max-width: 26ch; margin-inline: auto; }
+}
