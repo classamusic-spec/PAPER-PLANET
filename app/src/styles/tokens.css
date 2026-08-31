@@ -1,0 +1,202 @@
+/* PAPER PLANET — design tokens. ███ FROZEN ███ Use these; never hardcode a duplicate hex. */
+
+:root {
+  color-scheme: light;
+
+  /* ── Paper stack: elevation is encoded in the value ─────────────────────── */
+  --paper-0: #fdf8f0;
+  --paper-1: #f7ede0;
+  --paper-2: #efe1ce;
+  --paper-3: #e0cdb2;
+  --paper-4: #c9b393;
+  --paper-edge: #d6c3a6;
+  --paper-back: #fbf7ef; /* the reverse of a sheet */
+
+  /* ── Ink ────────────────────────────────────────────────────────────────── */
+  --ink: #2e2438;
+  --ink-soft: #6b5b7b;
+  --ink-faint: #a294b0;
+  --ink-hair: rgba(46, 36, 56, 0.14);
+
+  /* ── Natural-dye accents ────────────────────────────────────────────────── */
+  --beni: #e4664f;
+  --beni-deep: #c24732;
+  --beni-soft: #f5c4b7;
+  --kincha: #e0a340;
+  --kincha-deep: #b87d22;
+  --kincha-soft: #f6dfb2;
+  --matcha: #7e9e7b;
+  --matcha-deep: #5c7d59;
+  --matcha-soft: #cfdecd;
+  --ai: #4a6d8c;
+  --ai-deep: #34526d;
+  --ai-soft: #c3d5e2;
+  --murasaki: #7b5ea7;
+  --murasaki-deep: #5c4382;
+  --murasaki-soft: #d5c8e8;
+  --sakura: #efc2c0;
+  --sakura-deep: #d9928f;
+  --gold-leaf: #c9962e;
+  --gold-hi: #f5dc96;
+
+  /* ── Semantic ───────────────────────────────────────────────────────────── */
+  --surface: var(--paper-1);
+  --surface-raised: var(--paper-0);
+  --surface-sunken: var(--paper-2);
+  --desk: var(--paper-4);
+  --accent: var(--beni);
+  --positive: var(--matcha);
+  --info: var(--ai);
+  --rare: var(--murasaki);
+
+  /* ── Paper shadows: warm, directional, never neutral-grey ───────────────── */
+  --shadow-tint: 62, 44, 30;
+  --sh-0: none;
+  --sh-1: 0 1px 2px rgba(var(--shadow-tint), 0.10), 0 2px 5px rgba(var(--shadow-tint), 0.07);
+  --sh-2: 0 2px 4px rgba(var(--shadow-tint), 0.11), 0 6px 14px rgba(var(--shadow-tint), 0.10);
+  --sh-3: 0 4px 8px rgba(var(--shadow-tint), 0.12), 0 14px 30px rgba(var(--shadow-tint), 0.13);
+  --sh-4: 0 8px 16px rgba(var(--shadow-tint), 0.14), 0 28px 60px rgba(var(--shadow-tint), 0.18);
+  /* the hard offset shadow of a card lying on a desk */
+  --sh-card: 3px 4px 0 rgba(var(--shadow-tint), 0.16);
+  --sh-press: 1px 1px 0 rgba(var(--shadow-tint), 0.16);
+
+  /* ── Radii: cut paper has small, slightly irregular corners ─────────────── */
+  --r-xs: 5px;
+  --r-sm: 9px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --r-pill: 999px;
+
+  /* ── Type ───────────────────────────────────────────────────────────────── */
+  --font-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-text: 'Nunito', ui-rounded, -apple-system, system-ui, sans-serif;
+
+  --fs-display-xl: clamp(2.6rem, 10vw, 4.6rem);
+  --fs-display-l: clamp(2rem, 7.2vw, 3.2rem);
+  --fs-display-m: clamp(1.55rem, 5.4vw, 2.3rem);
+  --fs-title: clamp(1.2rem, 4.2vw, 1.6rem);
+  --fs-body-l: clamp(1.02rem, 3.6vw, 1.2rem);
+  --fs-body: clamp(0.94rem, 3.2vw, 1.04rem);
+  --fs-label: clamp(0.68rem, 2.5vw, 0.78rem);
+  --fs-micro: clamp(0.6rem, 2.1vw, 0.68rem);
+
+  --lh-tight: 1.06;
+  --lh-snug: 1.28;
+  --lh-body: 1.55;
+  --tracking-label: 0.14em;
+  --tracking-display: -0.02em;
+
+  /* ── Motion ─────────────────────────────────────────────────────────────── */
+  --ease-paper: cubic-bezier(0.2, 0.9, 0.25, 1);
+  --ease-settle: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-crisp: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-alive: cubic-bezier(0.28, 1.6, 0.4, 1);
+
+  --t-tap: 90ms;
+  --t-quick: 180ms;
+  --t-base: 300ms;
+  --t-slow: 520ms;
+  --t-page: 640ms;
+
+  /* ── Space (4pt base) ───────────────────────────────────────────────────── */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --s-12: 48px; --s-16: 64px; --s-20: 80px;
+
+  /* ── Layout ─────────────────────────────────────────────────────────────── */
+  --touch-min: 44px;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --hud-h: 56px;
+  --content-max: 720px;
+  --z-scene: 1;
+  --z-content: 10;
+  --z-hud: 20;
+  --z-sheet: 30;
+  --z-toast: 40;
+  --z-overlay: 50;
+
+  /* ── Engine lighting (read by engine/shade.ts) ──────────────────────────── */
+  --light-key: 0.82;
+  --light-fill: 0.34;
+  --light-sheen: 0.22;
+  --light-ao: 0.30;
+}
+
+/* ═══ NIGHT — "Lantern". Same paper, warm lamp, dark desk. ═══════════════════ */
+:root[data-theme='night'] {
+  color-scheme: dark;
+
+  --paper-0: #4a3d52;
+  --paper-1: #3b3040;
+  --paper-2: #322833;
+  --paper-3: #261f2b;
+  --paper-4: #1a1520;
+  --paper-edge: #574765;
+  --paper-back: #524459;
+
+  --ink: #f3e7d6;
+  --ink-soft: #c3b2c4;
+  --ink-faint: #8b7a93;
+  --ink-hair: rgba(243, 231, 214, 0.16);
+
+  --beni: #ef7b63;
+  --beni-deep: #d05a42;
+  --beni-soft: #7a4a44;
+  --kincha: #f2bc5e;      /* brighter — it is the lamp */
+  --kincha-deep: #d09a37;
+  --kincha-soft: #6d5731;
+  --matcha: #96b394;
+  --matcha-deep: #6e8f6c;
+  --matcha-soft: #465545;
+  --ai: #7ba0bf;
+  --ai-deep: #567b9a;
+  --ai-soft: #3b4d5e;
+  --murasaki: #a68ccc;
+  --murasaki-deep: #7f66a8;
+  --murasaki-soft: #4e4165;
+  --sakura: #d6a3a6;
+  --sakura-deep: #b57f83;
+  --gold-leaf: #e0b04a;
+  --gold-hi: #ffeeb9;
+
+  --shadow-tint: 8, 4, 18;
+  --sh-1: 0 1px 2px rgba(var(--shadow-tint), 0.34), 0 2px 6px rgba(var(--shadow-tint), 0.26);
+  --sh-2: 0 2px 5px rgba(var(--shadow-tint), 0.38), 0 8px 18px rgba(var(--shadow-tint), 0.32);
+  --sh-3: 0 5px 10px rgba(var(--shadow-tint), 0.42), 0 18px 38px rgba(var(--shadow-tint), 0.40);
+  --sh-4: 0 10px 20px rgba(var(--shadow-tint), 0.48), 0 34px 72px rgba(var(--shadow-tint), 0.52);
+  --sh-card: 3px 4px 0 rgba(var(--shadow-tint), 0.40);
+  --sh-press: 1px 1px 0 rgba(var(--shadow-tint), 0.40);
+
+  --light-key: 0.74;
+  --light-fill: 0.26;
+  --light-sheen: 0.30;
+  --light-ao: 0.40;
+}
+
+/* ═══ HIGH INK — accessibility: heavier outlines, stronger contrast ═════════ */
+:root[data-high-ink='true'] {
+  --ink-soft: var(--ink);
+  --ink-hair: rgba(46, 36, 56, 0.34);
+  --paper-1: #fbf3e6;
+  --paper-2: #e9d8c0;
+}
+:root[data-theme='night'][data-high-ink='true'] {
+  --ink-soft: var(--ink);
+  --ink-hair: rgba(243, 231, 214, 0.36);
+  --paper-1: #322735;
+  --paper-2: #281f2b;
+}
+
+/* ═══ REDUCED MOTION ═══════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-base: var(--t-quick);
+    --t-slow: var(--t-quick);
+    --t-page: var(--t-quick);
+    --ease-alive: var(--ease-paper);
+  }
+}

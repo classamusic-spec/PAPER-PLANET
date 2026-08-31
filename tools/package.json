@@ -1,0 +1,15 @@
+{
+  "name": "paper-planet-tools",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Build-time audio asset pipeline for PAPER PLANET. Not shipped.",
+  "scripts": {
+    "gen": "node gen-sfx.mjs",
+    "verify": "node verify-audio.mjs"
+  },
+  "devDependencies": {
+    "mpg123-decoder": "^1.0.3",
+    "@breezystack/lamejs": "^1.2.7"
+  }
+}
