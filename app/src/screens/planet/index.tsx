@@ -1,62 +1,83 @@
-/* PAPER PLANET — The Planet. A world you can look around, made of cut paper. */
+/* PAPER PLANET — The Planet. A world you can look around, and reach into. */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { BiomeId, KamiInstance, Species } from '../../contracts'
-import type { Surface } from '../../content/types'
-import { BIOME_SCENERY, allBiomes, getBiome, getMeta, getSpecies } from '../../content'
-import { actions, useDaily, useGame, useKamiList, useSettings, useWallet } from '../../systems'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { BiomeId } from '../../contracts'
+import { BIOME_SCENERY, allBiomes, getBiome, getSpecies } from '../../content'
+import {
+  BOND_DAILY_CAP,
+  SYS_KEY,
+  actions,
+  motionAllowed,
+  readFlag,
+  readFlagNumber,
+  useAway,
+  useDaily,
+  useGame,
+  useKamiList,
+  useSettings,
+  useToday,
+  useWallet,
+  type TendKind,
+} from '../../systems'
 import { audio, haptics } from '../../audio'
 import { createGestureRecogniser } from '../../shell/gestures'
 import { useNavigation } from '../../shell/Navigator'
-import { Button, GoldLeafPill, Icon, IconButton, Paper, SheetsPill, useToast } from '../../ui'
+import { Button, GoldLeafPill, Icon, IconButton, Paper, SheetsPill, useElementSize } from '../../ui'
 import { ShareButton } from '../../features/share'
 import KamiMark from '../codex/KamiMark'
 import { PROP_ART, PROP_BAND } from './propArt'
+import { BOX, TOUCH_MIN, hash01, placeKami, type Placed } from './layout'
+import AwayNote from './AwayNote'
+import TendCard from './TendCard'
 import './planet.css'
-
-/**
- * Where each kind of creature stands, as a fraction of the world's height.
- *
- * Measured against what the world actually draws, not guessed: the ground
- * begins at 0.48, the pond occupies 0.61-0.70, and the biome tabs cover
- * everything below 0.825. So a walker belongs between the pond and the tabs —
- * standing in the water read as a bug rather than a swim, and standing below
- * them put half the collection behind a button.
- */
-const BANDS: Record<string, [number, number]> = {
-  air: [0.28, 0.44],
-  perch: [0.48, 0.56],
-  rock: [0.57, 0.63],
-  water: [0.62, 0.68],
-  ground: [0.72, 0.78],
-}
-
-/** Nothing may stand below this: the biome tabs start here. */
-const FLOOR = 0.79
 
 /** How fast each depth band travels against a pan. Nearer moves more. */
 const PARALLAX: Record<string, number> = { far: 0.22, mid: 0.55, near: 1 }
 
-/** Deterministic 0..1 from a string, so a world lays out the same every visit. */
-function hash01(s: string, salt = 0): number {
-  let h = 2166136261 ^ salt
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return ((h >>> 0) % 100000) / 100000
+/** How long a reaction is allowed to stay on screen before it is cleared. */
+const FLASH_MS = 2400
+
+const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, n))
+
+/* ── the reaction vocabulary ────────────────────────────────────────────────
+   Reactions are played straight onto the element rather than through React
+   state, for two reasons. One: a tap must not re-render twelve Kami. Two: the
+   button's `animation` slot is already spoken for by the species' idle, so a
+   reaction has to live on the inner sheet — and a class there cannot be
+   retriggered when you tap the same creature twice in a row. */
+
+const BEAT: Record<'feed' | 'pet' | 'stir' | 'greet', Keyframe[]> = {
+  /* Head down, take it, settle heavier than before. */
+  feed: [
+    { transform: 'translateY(0) scale(1,1)' },
+    { transform: 'translateY(9%) scale(1.04,0.94)', offset: 0.22 },
+    { transform: 'translateY(2%) scale(0.98,1.04)', offset: 0.5 },
+    { transform: 'translateY(-3%) scale(1.03,1.01)', offset: 0.72 },
+    { transform: 'translateY(0) scale(1,1)' },
+  ],
+  /* Lean into the hand. The old happy beat, kept. */
+  pet: [
+    { transform: 'scale(1) rotate(0deg)' },
+    { transform: 'scale(1.15) rotate(-5deg)', offset: 0.3 },
+    { transform: 'scale(0.97) rotate(4deg)', offset: 0.62 },
+    { transform: 'scale(1) rotate(0deg)' },
+  ],
+  /* A flockmate looking over at the fuss. */
+  stir: [
+    { transform: 'scale(1) rotate(0deg)' },
+    { transform: 'scale(1.06) rotate(-3.5deg)', offset: 0.38 },
+    { transform: 'scale(1) rotate(0deg)' },
+  ],
+  /* Noticing that you are back. */
+  greet: [
+    { transform: 'translateY(0) scale(1)' },
+    { transform: 'translateY(-9%) scale(1.07)', offset: 0.34 },
+    { transform: 'translateY(1%) scale(0.99)', offset: 0.68 },
+    { transform: 'translateY(0) scale(1)' },
+  ],
 }
 
-interface Placed {
-  kami: KamiInstance
-  species: Species
-  /** Normalised world position. */
-  x: number
-  y: number
-  scale: number
-  /** Kami of a species that flocks with a neighbour lean toward it. */
-  lean: number
-}
+const BEAT_MS: Record<keyof typeof BEAT, number> = { feed: 1100, pet: 900, stir: 700, greet: 1000 }
 
 export default function PlanetScreen() {
   const nav = useNavigation()
@@ -65,14 +86,22 @@ export default function PlanetScreen() {
   const daily = useDaily()
   const settings = useSettings()
   const owned = useGame((s) => s.biomes)
-  const toast = useToast()
+  const seen = useGame((s) => s.seen)
+  const today = useToday()
+  const away = useAway()
 
   const [biome, setBiome] = useState<BiomeId>('meadow')
-  const [pan, setPan] = useState(0)
-  const [selected, setSelected] = useState<string | null>(null)
-  const worldRef = useRef<HTMLDivElement>(null)
-  const panRef = useRef(0)
+  const [open, setOpen] = useState<string | null>(null)
+  const [flash, setFlash] = useState<{ uid: string; note: string } | null>(null)
+  const [morsel, setMorsel] = useState<{ uid: string; n: number } | null>(null)
 
+  const [worldRef, world] = useElementSize<HTMLDivElement>()
+  const navRef = useRef<HTMLElement>(null)
+  const panRef = useRef(0)
+  const bodies = useRef(new Map<string, HTMLElement>())
+  const flashTimer = useRef<number | undefined>(undefined)
+
+  const motion = motionAllowed(settings)
   const biomes = useMemo(() => allBiomes().filter((b) => owned.includes(b.id)), [owned])
   const current = getBiome(biome) ?? biomes[0]
   const scenery = BIOME_SCENERY[biome]
@@ -98,86 +127,182 @@ export default function PlanetScreen() {
     audio.setAmbience(night && current?.ambience === 'meadow' ? 'night' : current?.ambience ?? 'meadow', 2.5)
   }, [current, night])
 
-  /* ── placement, from the species record rather than a hardcoded table ──── */
-  const placed = useMemo<Placed[]>(() => {
-    const here = kami.filter((k) => {
-      const s = getSpecies(k.speciesId)
-      return s ? s.biome === biome : false
-    })
+  /* ── placement ─────────────────────────────────────────────────────────── */
 
-    /* Lay them out band by band rather than all at once.
-       The old rule walked one index across the whole biome and wrapped it, so
-       a fox and a rabbit could land on the same blade of grass while half the
-       field stood empty. Spacing each band by how crowded that band is keeps
-       them apart at any collection size, and keeps a walker out of the pond. */
-    const bandOf = (k: KamiInstance): Surface => getMeta(k.speciesId)?.surface ?? 'ground'
-    const order: Record<string, KamiInstance[]> = {}
-    for (const k of here) (order[bandOf(k)] ??= []).push(k)
+  /* Where the chrome actually starts, measured rather than assumed: the biome
+     row grows as biomes open, and it sits higher on a tablet. The layout needs
+     the real number or the biggest Kami stands with its feet behind a button. */
+  const [chromeTop, setChromeTop] = useState(1)
+  useLayoutEffect(() => {
+    const nav = navRef.current
+    const el = worldRef.current
+    if (!nav || !el || world.h === 0) return
+    const top = nav.getBoundingClientRect().top - el.getBoundingClientRect().top
+    setChromeTop((prev) => (Math.abs(prev - top / world.h) < 0.002 ? prev : top / world.h))
+  }, [world.h, world.w, biomes.length, worldRef])
 
-    return here.map((k) => {
-      const species = getSpecies(k.speciesId)!
-      const meta = getMeta(k.speciesId)
-      const surface = bandOf(k)
-      const jitterY = hash01(k.uid, 2)
-      const jitterX = hash01(k.uid, 1)
+  /* The Daily Fold lantern shares the top of the world with the note, so it
+     waits underneath it — by the note's real height, which depends on how long
+     you were away and how wide the screen is. */
+  const [noteH, setNoteH] = useState(0)
+  useLayoutEffect(() => {
+    const note = document.querySelector('.pp-planet__away')
+    setNoteH(note instanceof HTMLElement ? note.offsetHeight : 0)
+  }, [away, world.w, world.h])
 
-      const siblings = order[surface] ?? [k]
-      const slot = siblings.indexOf(k)
-      const n = siblings.length
-      // Evenly spaced across the field, with room to wander inside the slot.
-      const spread = 0.84 / n
-      const x = 0.08 + spread * (slot + 0.5) + (jitterX - 0.5) * spread * 0.4
+  const placed = useMemo<Placed[]>(
+    () => placeKami(kami, biome, world.w, world.h, { water: scenery?.water === true, chromeTop }),
+    [kami, biome, world.w, world.h, scenery, chromeTop],
+  )
+  const empty = placed.length === 0
 
-      // Water dwellers sit low in the pond, fliers ride high, the rest walk.
-      const band = BANDS[surface] ?? BANDS.ground
-      const y = Math.min(FLOOR, band[0] + jitterY * (band[1] - band[0]))
+  /* ── reactions ─────────────────────────────────────────────────────────── */
 
-      // A Kami whose species flocks with a neighbour here leans toward them.
-      const flock = meta?.flock ?? []
-      const friend = here.find((o) => o.uid !== k.uid && flock.includes(o.speciesId))
-      return {
-        kami: k,
-        species,
-        x,
-        y,
-        scale: (meta?.scale ?? 1) * (0.92 + (y - 0.5) * 0.34),
-        lean: friend ? (hash01(friend.uid, 3) > 0.5 ? 6 : -6) : 0,
-      }
-    })
-  }, [kami, biome])
+  const play = useCallback(
+    (uid: string, beat: keyof typeof BEAT, delay = 0) => {
+      const el = bodies.current.get(uid)
+      if (!el || !motion || typeof el.animate !== 'function') return
+      el.animate(BEAT[beat], {
+        duration: BEAT_MS[beat],
+        delay,
+        easing: beat === 'stir' ? 'cubic-bezier(.2,.9,.25,1)' : 'cubic-bezier(.28,1.6,.4,1)',
+        fill: 'none',
+      })
+    },
+    [motion],
+  )
 
-  /* ── pan the world ────────────────────────────────────────────────────── */
+  /** Everyone on screen looks up, nearest first. Used on return, and on hello. */
+  const greetAll = useCallback(() => {
+    for (const p of placed) play(p.kami.uid, 'greet', Math.round(p.x * 420))
+  }, [placed, play])
+
+  /* Coming back to a planet that has been alone is the one moment the whole
+     field moves at once. It fires once per return, not on every re-render. */
+  const greeted = useRef(false)
+  useEffect(() => {
+    if (away === null || placed.length === 0 || greeted.current) return
+    greeted.current = true
+    const id = window.setTimeout(greetAll, 420)
+    return () => window.clearTimeout(id)
+  }, [away, placed.length, greetAll])
+
+  /* ── pan the world ─────────────────────────────────────────────────────── */
+
+  /* The pan is written straight to a custom property. Bands and Kami read it in
+     their own transforms, so dragging the world costs no React render at all —
+     which is what keeps a dozen Kami at 60fps while the world moves. */
+  const applyPan = useCallback((next: number) => {
+    panRef.current = next
+    worldRef.current?.style.setProperty('--pan', next.toFixed(4))
+  }, [worldRef])
+
   useEffect(() => {
     const el = worldRef.current
     if (!el) return
     const rec = createGestureRecogniser(el, {
       onUpdate: (s) => {
         if (s.kind !== 'drag' && s.kind !== 'swipe') return
-        panRef.current = Math.max(-1, Math.min(1, panRef.current + s.stepX / (el.clientWidth || 1) * -1.4))
-        setPan(panRef.current)
+        applyPan(clamp(panRef.current + (s.stepX / (el.clientWidth || 1)) * -1.4, -1, 1))
+        setOpen(null)
       },
     })
-    return () => rec.destroy()
-  }, [])
+
+    /* A press on the ground puts the card away; a press on a Kami is that
+       Kami's, and has to be given back to it. The recogniser captures the
+       pointer on the world for every press so that a drag survives leaving the
+       element — and a captured pointer retargets the compatibility click at the
+       capture element, which silently swallowed every tap on a creature. This
+       listener is registered here, right after the recogniser, so it is
+       guaranteed to run second and can hand the pointer back. */
+    const onDown = (e: PointerEvent): void => {
+      const target = e.target as Element | null
+      if (target?.closest('.pp-planet__k, .pp-planet__tend')) {
+        if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId)
+        return
+      }
+      setOpen(null)
+    }
+    el.addEventListener('pointerdown', onDown)
+
+    return () => {
+      el.removeEventListener('pointerdown', onDown)
+      rec.destroy()
+    }
+  }, [applyPan, worldRef])
+
+  useEffect(() => () => window.clearTimeout(flashTimer.current), [])
+
+  /* ── tending ───────────────────────────────────────────────────────────── */
+
+  const openPlaced = placed.find((p) => p.kami.uid === open) ?? null
+
+  /** Today's remaining allowance, read the same way `tendKami` writes it. */
+  const remainingToday = useMemo(() => {
+    if (!openPlaced) return BOND_DAILY_CAP
+    if (readFlag(seen, SYS_KEY.bondDay) !== today) return BOND_DAILY_CAP
+    return Math.max(0, BOND_DAILY_CAP - readFlagNumber(seen, `${SYS_KEY.bondFed}/${openPlaced.kami.uid}`, 0))
+  }, [openPlaced, seen, today])
 
   const tend = useCallback(
-    (k: KamiInstance, species: Species) => {
-      const out = actions.tend(k.uid, 'pet')
-      audio.play(out && out.gained > 0 ? 'alive.nuzzle' : 'alive.breath')
-      haptics.fire('tick')
-      if (out && out.gained === 0) {
-        toast.show({ title: `${k.nickname ?? species.name} has had plenty today.`, note: 'Come back tomorrow.' })
+    (p: Placed, kind: TendKind) => {
+      const out = actions.tend(p.kami.uid, kind)
+      if (!out) return
+      actions.dismissAway()
+
+      if (out.gained > 0) {
+        audio.play(kind === 'feed' ? 'alive.happy' : 'alive.nuzzle')
+        haptics.fire(kind === 'feed' ? 'alive' : 'tick')
+        play(p.kami.uid, kind)
+        if (kind === 'feed') setMorsel((m) => ({ uid: p.kami.uid, n: (m?.n ?? 0) + 1 }))
+      } else {
+        audio.play('alive.breath')
+        haptics.fire('tick')
       }
-      setSelected(k.uid)
-      window.setTimeout(() => setSelected((cur) => (cur === k.uid ? null : cur)), 1800)
+
+      /* The flock looks over. Nearest first, so the attention travels. */
+      if (p.flock !== null) {
+        for (const other of placed) {
+          if (other.flock !== p.flock || other.kami.uid === p.kami.uid) continue
+          play(other.kami.uid, 'stir', 120 + Math.round(Math.abs(other.x - p.x) * 900))
+        }
+      }
+
+      window.clearTimeout(flashTimer.current)
+      setFlash({ uid: p.kami.uid, note: out.note })
+      flashTimer.current = window.setTimeout(() => setFlash(null), FLASH_MS)
     },
-    [toast],
+    [placed, play],
   )
 
-  const empty = placed.length === 0
+  /* ── where the tending card sits ───────────────────────────────────────── */
+  const card = useMemo(() => {
+    if (!openPlaced || world.w === 0) return null
+    const boxPx = Math.max(openPlaced.scale * BOX * world.w, TOUCH_MIN)
+    const cardW = Math.min(276, world.w - 24)
+    const left = clamp(openPlaced.x * world.w, cardW / 2 + 12, world.w - cardW / 2 - 12)
+    const below = openPlaced.y <= 0.45
+    if (below) {
+      const top = clamp(openPlaced.y * world.h + boxPx / 2 + 12, 72, Math.max(72, world.h - 300))
+      return { below, style: { left: `${left}px`, top: `${top}px` } }
+    }
+    const bottom = clamp(world.h - (openPlaced.y * world.h - boxPx / 2 - 12), 156, Math.max(156, world.h - 220))
+    return { below, style: { left: `${left}px`, bottom: `${bottom}px` } }
+  }, [openPlaced, world.w, world.h])
+
+  /* ── the note about being away ─────────────────────────────────────────── */
+  const missedBy = useMemo(() => {
+    if (kami.length === 0) return null
+    const best = kami.reduce((a, b) => (b.bond > a.bond ? b : a))
+    return best.nickname ?? getSpecies(best.speciesId)?.name ?? null
+  }, [kami])
 
   return (
-    <div className={'pp-planet' + (night ? ' is-night' : '')} data-biome={biome}>
+    <div
+      className={'pp-planet' + (night ? ' is-night' : '')}
+      data-biome={biome}
+      style={{ ['--away-h' as string]: `${noteH}px` }}
+    >
       {/* ── the world ──────────────────────────────────────────────────── */}
       <div
         ref={worldRef}
@@ -199,7 +324,7 @@ export default function PlanetScreen() {
             key={band}
             className={`pp-planet__band pp-planet__band--${band}`}
             aria-hidden="true"
-            style={{ transform: `translate3d(${pan * PARALLAX[band] * -26}%, 0, 0)` }}
+            style={{ ['--depth' as string]: PARALLAX[band] }}
           >
             {(scenery?.props ?? [])
               .filter((p) => (PROP_BAND[p] ?? 'mid') === band)
@@ -231,41 +356,90 @@ export default function PlanetScreen() {
           </div>
         ))}
 
-        <div className="pp-planet__ground" aria-hidden="true" />
-        {scenery?.water && <div className="pp-planet__water" aria-hidden="true" />}
+        {/* Ground and pond travel with the Kami, in one layer the width of the
+            world — a percentage translate is a percentage of the element, so
+            panning them individually walked the pond out from under the fish. */}
+        <div className="pp-planet__scene" aria-hidden="true">
+          <div className="pp-planet__ground" />
+          {scenery?.water && <div className="pp-planet__water" />}
+        </div>
 
         {/* Kami */}
-        <div
-          className="pp-planet__kami"
-          style={{ transform: `translate3d(${pan * -26}%, 0, 0)` }}
-        >
-          {placed.map((p) => (
-            <button
-              key={p.kami.uid}
-              type="button"
-              className={'pp-planet__k' + (selected === p.kami.uid ? ' is-happy' : '')}
-              style={{
-                left: `${p.x * 100}%`,
-                top: `${p.y * 100}%`,
-                width: `${p.scale * 17}%`,
-                ['--lean' as string]: `${p.lean}deg`,
-                ['--phase' as string]: `${hash01(p.kami.uid, 5) * 9}s`,
-              }}
-              data-idle={p.species.idle}
-              onClick={() => tend(p.kami, p.species)}
-              aria-label={`${p.kami.nickname ?? p.species.name}. Bond ${Math.round(p.kami.bond)} of 100. Tap to greet.`}
-            >
-              <KamiMark
-                art={p.species.art}
-                name={p.species.name}
-                size="100%"
-                mode="folded"
-                gold={p.kami.golden}
-                decorative
-              />
-            </button>
-          ))}
+        <div className="pp-planet__kami">
+          {placed.map((p) => {
+            const name = p.kami.nickname ?? p.species.name
+            const mates =
+              p.with.length === 0
+                ? ''
+                : p.with.length <= 2
+                  ? ` Together with the ${p.with.join(' and the ').toLowerCase()}.`
+                  : ` Together with ${p.with.length} others.`
+            return (
+              <button
+                key={p.kami.uid}
+                type="button"
+                className={
+                  'pp-planet__k' +
+                  (open === p.kami.uid ? ' is-open' : '') +
+                  (p.flock !== null ? ' is-flocking' : '')
+                }
+                style={{
+                  left: `${p.x * 100}%`,
+                  top: `${p.y * 100}%`,
+                  width: `${p.scale * BOX * 100}%`,
+                  ['--lean' as string]: `${p.lean.toFixed(2)}deg`,
+                  ['--phase' as string]: `${p.phase.toFixed(2)}s`,
+                }}
+                data-idle={p.species.idle}
+                data-uid={p.kami.uid}
+                onClick={() => {
+                  setOpen((cur) => (cur === p.kami.uid ? null : p.kami.uid))
+                  audio.play('ui.open')
+                }}
+                aria-label={`${name}. ${Math.round(p.kami.bond)} of 100 bond.${mates} Tap to tend.`}
+                aria-expanded={open === p.kami.uid}
+              >
+                <span
+                  className="pp-planet__kbody"
+                  ref={(el) => {
+                    if (el) bodies.current.set(p.kami.uid, el)
+                    else bodies.current.delete(p.kami.uid)
+                  }}
+                >
+                  <KamiMark
+                    art={p.species.art}
+                    name={p.species.name}
+                    size="100%"
+                    mode="folded"
+                    gold={p.kami.golden}
+                    decorative
+                  />
+                </span>
+                {morsel?.uid === p.kami.uid && (
+                  <span key={morsel.n} className="pp-planet__morsel" aria-hidden="true">
+                    <Icon name="leaf" size={16} />
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
+
+        {openPlaced && card && (
+          <TendCard
+            placed={openPlaced}
+            bond={openPlaced.kami.bond}
+            remainingToday={remainingToday}
+            style={card.style}
+            below={card.below}
+            flash={flash?.uid === openPlaced.kami.uid ? flash.note : null}
+            onTend={(kind) => tend(openPlaced, kind)}
+            onClose={() => {
+              setOpen(null)
+              audio.play('ui.close')
+            }}
+          />
+        )}
 
         {empty && (
           <div className="pp-planet__empty">
@@ -290,11 +464,24 @@ export default function PlanetScreen() {
         </div>
       </header>
 
+      {away !== null && (
+        <AwayNote
+          away={away}
+          name={missedBy}
+          waiting={kami.length}
+          onGreet={() => {
+            actions.dismissAway()
+            greetAll()
+          }}
+          onClose={() => actions.dismissAway()}
+        />
+      )}
+
       {/* The Daily Fold, waiting like a lit lantern. */}
       {!daily.done && daily.speciesId && (
         <button
           type="button"
-          className="pp-planet__lantern"
+          className={'pp-planet__lantern' + (away !== null ? ' is-lowered' : '')}
           onClick={() => nav.push('studio', { speciesId: daily.speciesId, mode: 'daily' })}
         >
           <Icon name="sparkle" size={16} />
@@ -305,7 +492,7 @@ export default function PlanetScreen() {
         </button>
       )}
 
-      <nav className="pp-planet__biomes" aria-label="Biomes">
+      <nav className="pp-planet__biomes" aria-label="Biomes" ref={navRef}>
         {biomes.map((b) => (
           <button
             key={b.id}
@@ -313,6 +500,7 @@ export default function PlanetScreen() {
             className={'pp-planet__biome' + (b.id === biome ? ' is-here' : '')}
             onClick={() => {
               setBiome(b.id)
+              setOpen(null)
               audio.play('sheet.slide')
             }}
             aria-current={b.id === biome ? 'true' : undefined}
