@@ -19,7 +19,7 @@ export const squirrel: SpeciesDef = {
   idle: 'hop',
   reward: 20,
   unlock: { type: 'species', id: 'fox', mastery: 'novice' },
-  meta: { tier: 'classic', surface: 'perch', scale: 0.8, altitude: 0.22, flock: ['musasabi'] },
+  meta: { tier: 'classic', surface: 'perch', scale: 0.8, altitude: 0.22, flock: ['musasabi', 'treefrog'] },
   codex: CODEX.squirrel,
   art: [
     { pts: '126,124 172,102 190,58 168,18 136,20 158,48 148,86 120,104', fill: S.light, layer: 0 },

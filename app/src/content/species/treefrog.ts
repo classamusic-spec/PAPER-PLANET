@@ -19,7 +19,7 @@ export const treefrog: SpeciesDef = {
   idle: 'hop',
   reward: 69,
   unlock: { type: 'species', id: 'frog', mastery: 'master' },
-  meta: { tier: 'grand', surface: 'perch', scale: 0.76, altitude: 0.3, flock: ['frog'] },
+  meta: { tier: 'grand', surface: 'perch', scale: 0.76, altitude: 0.3, flock: ['frog', 'squirrel'] },
   codex: CODEX.treefrog,
   art: [
     { pts: '40,116 18,138 34,150 52,132', fill: G.dark, layer: 0 },

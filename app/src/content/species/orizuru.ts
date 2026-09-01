@@ -19,7 +19,7 @@ export const orizuru: SpeciesDef = {
   idle: 'fly',
   reward: 80,
   unlock: { type: 'species', id: 'crane', mastery: 'grand' },
-  meta: { tier: 'grand', surface: 'air', scale: 1.24, altitude: 0.5, flock: ['crane'] },
+  meta: { tier: 'grand', surface: 'air', scale: 1.24, altitude: 0.5, flock: ['crane', 'eagle'] },
   codex: CODEX.orizuru,
   art: [
     { pts: '100,88 22,50 28,96 96,110', fill: B.light, layer: 0 },

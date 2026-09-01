@@ -19,7 +19,7 @@ export const frog: SpeciesDef = {
   idle: 'hop',
   reward: 20,
   unlock: { type: 'species', id: 'rabbit', mastery: 'adept' },
-  meta: { tier: 'classic', surface: 'ground', scale: 0.86, altitude: 0.02, flock: ['treefrog'] },
+  meta: { tier: 'classic', surface: 'ground', scale: 0.86, altitude: 0.02, flock: ['treefrog', 'snail'] },
   codex: CODEX.frog,
   art: [
     { pts: '44,150 28,168 66,164', fill: G.dark, layer: 0 },

@@ -20,7 +20,7 @@ export const heron: SpeciesDef = {
   idle: 'stand',
   reward: 26,
   unlock: { type: 'species', id: 'crane', mastery: 'adept' },
-  meta: { tier: 'classic', surface: 'water', scale: 1.24, altitude: 0.04, flock: ['crane'] },
+  meta: { tier: 'classic', surface: 'water', scale: 1.24, altitude: 0.04, flock: ['crane', 'fish'] },
   codex: CODEX.heron,
   art: [
     stroke(102, 134, 100, 178, TOKEN.kinchaDeep),

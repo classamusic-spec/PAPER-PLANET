@@ -19,7 +19,7 @@ export const crane: SpeciesDef = {
   idle: 'stand',
   reward: 26,
   unlock: { type: 'free' },
-  meta: { tier: 'classic', surface: 'ground', scale: 1.16, altitude: 0.06, flock: ['heron', 'orizuru'] },
+  meta: { tier: 'classic', surface: 'ground', scale: 1.16, altitude: 0.06, flock: ['heron', 'orizuru', 'frog'] },
   codex: CODEX.crane,
   art: [
     { pts: '132,92 178,52 146,112', fill: B.dark, layer: 0 },

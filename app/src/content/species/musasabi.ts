@@ -19,7 +19,7 @@ export const musasabi: SpeciesDef = {
   idle: 'fly',
   reward: 48,
   unlock: { type: 'species', id: 'squirrel', mastery: 'master' },
-  meta: { tier: 'master', surface: 'air', scale: 1.08, altitude: 0.48, flock: ['squirrel'] },
+  meta: { tier: 'master', surface: 'air', scale: 1.08, altitude: 0.48, flock: ['squirrel', 'bat'] },
   codex: CODEX.musasabi,
   art: [
     { pts: '100,44 170,88 178,142 100,170 22,142 30,88', fill: S.base, layer: 0 },

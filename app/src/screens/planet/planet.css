@@ -18,9 +18,6 @@
   --ground: var(--matcha-soft);
   --far: var(--matcha);
   --accent: var(--kincha);
-  /* How far the world has been dragged, -1..1. Written by the pan handler
-     straight onto this element, so a drag costs no React render. */
-  --pan: 0;
 }
 .pp-planet__world:active { cursor: grabbing; }
 
@@ -49,7 +46,8 @@
   position: absolute;
   inset: 0;
   will-change: transform;
-  transform: translate3d(calc(var(--pan) * var(--depth, 1) * -26%), 0, 0);
+  /* The pan handler writes the transform on every `[data-depth]` layer. */
+  transform: translate3d(0, 0, 0);
   transition: transform 120ms linear;
   pointer-events: none;
 }
@@ -80,7 +78,7 @@
   position: absolute;
   inset: 0;
   will-change: transform;
-  transform: translate3d(calc(var(--pan) * -26%), 0, 0);
+  transform: translate3d(0, 0, 0);
   transition: transform 120ms linear;
   pointer-events: none;
 }
@@ -127,7 +125,7 @@
   inset: 0;
   z-index: 6;
   will-change: transform;
-  transform: translate3d(calc(var(--pan) * -26%), 0, 0);
+  transform: translate3d(0, 0, 0);
   transition: transform 120ms linear;
 }
 
@@ -382,7 +380,10 @@
   font-size: var(--fs-micro);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
-  color: var(--ink-faint);
+  /* Not --ink-faint: a 2.7:1 label fails BRAND section 11 at any size, and it is
+     the one line that tells you what the note is. --ink-soft clears 4.5:1 in
+     both themes and goes to full ink under High Ink. */
+  color: var(--ink-soft);
 }
 .pp-planet__awayhead {
   margin: var(--s-1) 0 0;

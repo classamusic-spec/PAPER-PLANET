@@ -260,7 +260,8 @@ const ROWS_MAX = 3
 /**
  * How big a Kami is drawn in each row of depth. The band's own depth-scale only
  * spans 8% across a band, which is not enough to read as distance — a back row
- * at the same size looks like a bug, not a hillside. */
+ * at the same size looks like a bug, not a hillside.
+ */
 const ROW_DEPTH = [1, 0.84, 0.72]
 
 /** Shoulder to shoulder still leaves a little daylight between shoulders. */

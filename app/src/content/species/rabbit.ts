@@ -17,7 +17,7 @@ export const rabbit: SpeciesDef = {
   idle: 'hop',
   reward: 12,
   unlock: { type: 'collection', count: 2 },
-  meta: { tier: 'simple', surface: 'ground', scale: 0.94, altitude: 0.04, flock: ['snowhare'] },
+  meta: { tier: 'simple', surface: 'ground', scale: 0.94, altitude: 0.04, flock: ['snowhare', 'cat'] },
   codex: CODEX.rabbit,
   art: [
     { pts: '80,84 66,14 98,72', fill: TOKEN.paper0, layer: 0 },

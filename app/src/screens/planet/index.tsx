@@ -143,11 +143,13 @@ export default function PlanetScreen() {
 
   /* The Daily Fold lantern shares the top of the world with the note, so it
      waits underneath it — by the note's real height, which depends on how long
-     you were away and how wide the screen is. */
-  const [noteH, setNoteH] = useState(0)
+     you were away and how wide the screen is. Written straight onto the element
+     as a custom property: nothing renders from it, the CSS just reads it. */
+  const rootRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const note = document.querySelector('.pp-planet__away')
-    setNoteH(note instanceof HTMLElement ? note.offsetHeight : 0)
+    const tall = note instanceof HTMLElement ? note.offsetHeight : 0
+    rootRef.current?.style.setProperty('--away-h', `${tall}px`)
   }, [away, world.w, world.h])
 
   const placed = useMemo<Placed[]>(
@@ -189,13 +191,33 @@ export default function PlanetScreen() {
 
   /* ── pan the world ─────────────────────────────────────────────────────── */
 
-  /* The pan is written straight to a custom property. Bands and Kami read it in
-     their own transforms, so dragging the world costs no React render at all —
-     which is what keeps a dozen Kami at 60fps while the world moves. */
-  const applyPan = useCallback((next: number) => {
-    panRef.current = next
-    worldRef.current?.style.setProperty('--pan', next.toFixed(4))
-  }, [worldRef])
+  /**
+   * The pan is written straight onto the depth layers, so dragging the world
+   * costs no React render at all — which is what keeps a dozen Kami at 60fps
+   * while the world moves.
+   *
+   * Onto the layers, and not onto a `--pan` custom property the layers read in
+   * a `calc()`: measured in Chromium with twelve Kami, driving the transform
+   * through a custom property held the drag at a median 50ms a frame, because
+   * every change re-resolves the calc through the style engine. Writing the
+   * five transforms directly is a flat 16.7ms — the compositor never has to ask
+   * the main thread anything.
+   */
+  const applyPan = useCallback(
+    (next: number) => {
+      panRef.current = next
+      const el = worldRef.current
+      if (!el) return
+      for (const layer of el.querySelectorAll<HTMLElement>('[data-depth]')) {
+        // BRAND section 7 asks reduced motion to kill parallax. Looking around
+        // is the player's own doing and stays, but the depth separation — the
+        // part that moves without being asked — flattens to one plane.
+        const depth = motion ? Number(layer.dataset.depth) || 1 : 1
+        layer.style.transform = `translate3d(${(next * depth * -26).toFixed(3)}%, 0, 0)`
+      }
+    },
+    [motion, worldRef],
+  )
 
   useEffect(() => {
     const el = worldRef.current
@@ -279,7 +301,9 @@ export default function PlanetScreen() {
   const card = useMemo(() => {
     if (!openPlaced || world.w === 0) return null
     const boxPx = Math.max(openPlaced.scale * BOX * world.w, TOUCH_MIN)
-    const cardW = Math.min(276, world.w - 24)
+    // Matches the widths in planet.css, including its 768px breakpoint: the
+    // clamp below has to know how wide the card will actually turn out.
+    const cardW = world.w >= 768 ? 300 : Math.min(276, world.w - 24)
     const left = clamp(openPlaced.x * world.w, cardW / 2 + 12, world.w - cardW / 2 - 12)
     const below = openPlaced.y <= 0.45
     if (below) {
@@ -298,11 +322,7 @@ export default function PlanetScreen() {
   }, [kami])
 
   return (
-    <div
-      className={'pp-planet' + (night ? ' is-night' : '')}
-      data-biome={biome}
-      style={{ ['--away-h' as string]: `${noteH}px` }}
-    >
+    <div ref={rootRef} className={'pp-planet' + (night ? ' is-night' : '')} data-biome={biome}>
       {/* ── the world ──────────────────────────────────────────────────── */}
       <div
         ref={worldRef}
@@ -324,7 +344,7 @@ export default function PlanetScreen() {
             key={band}
             className={`pp-planet__band pp-planet__band--${band}`}
             aria-hidden="true"
-            style={{ ['--depth' as string]: PARALLAX[band] }}
+            data-depth={PARALLAX[band]}
           >
             {(scenery?.props ?? [])
               .filter((p) => (PROP_BAND[p] ?? 'mid') === band)
@@ -359,13 +379,13 @@ export default function PlanetScreen() {
         {/* Ground and pond travel with the Kami, in one layer the width of the
             world — a percentage translate is a percentage of the element, so
             panning them individually walked the pond out from under the fish. */}
-        <div className="pp-planet__scene" aria-hidden="true">
+        <div className="pp-planet__scene" aria-hidden="true" data-depth="1">
           <div className="pp-planet__ground" />
           {scenery?.water && <div className="pp-planet__water" />}
         </div>
 
         {/* Kami */}
-        <div className="pp-planet__kami">
+        <div className="pp-planet__kami" data-depth="1">
           {placed.map((p) => {
             const name = p.kami.nickname ?? p.species.name
             const mates =

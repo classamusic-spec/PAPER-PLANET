@@ -21,7 +21,7 @@ export const snowhare: SpeciesDef = {
   reward: 26,
   unlock: { type: 'biome', id: 'peak' },
   seasonal: 'winter',
-  meta: { tier: 'classic', surface: 'ground', scale: 0.96, altitude: 0.02, flock: ['rabbit'] },
+  meta: { tier: 'classic', surface: 'ground', scale: 0.96, altitude: 0.02, flock: ['rabbit', 'serow'] },
   codex: CODEX.snowhare,
   art: [
     { pts: '78,84 62,10 96,70', fill: COAT, layer: 0 },
